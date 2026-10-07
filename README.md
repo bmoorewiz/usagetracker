@@ -11,7 +11,7 @@ three tabs:
 
 ## Web page (no install, no keys)
 
-`frontier-sizing.html` is the whole tool as one web page. Email it to a rep, or host it on SharePoint, an
+`aisizing.html` is the whole tool as one web page. Email it to a rep, or host it on SharePoint, an
 intranet or GitHub Pages. On its **Data** tab the rep copies a prompt for the customer's Claude or ChatGPT
 analytics chat, then pastes or drops the answer and clicks **Build report**. That opens the same Usage,
 On-prem sizing and Grafana tabs as the desktop app. Everything runs in the browser, so customer data
@@ -27,7 +27,7 @@ python3 build_web.py
 
 ### Putting it on a web server
 
-`python3 build_web.py` writes `dist/index.html`. That one file is the whole site: no other files, no
+`python3 build_web.py` writes `dist/aisizing.html`. That one file is the whole site: no other files, no
 database, no server code. Upload it to any static host (IIS, nginx, Apache, Azure Static Web Apps, S3,
 SharePoint, GitHub Pages) and give reps the URL.
 
@@ -36,7 +36,7 @@ SharePoint, GitHub Pages) and give reps the URL.
   into it can't be sent anywhere. Don't add analytics or tracking scripts; the policy blocks them anyway.
 - It asks search engines not to index it (`robots: noindex`). Remove that meta tag in `build_web.py`
   if you want it public.
-- Updating it means rebuilding and re-uploading `dist/index.html`.
+- Updating it means rebuilding and re-uploading `dist/aisizing.html`.
 
 ## Quick start (no command line)
 

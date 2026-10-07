@@ -2,7 +2,7 @@
 
 Use these when the customer won't share an API key. Someone with admin access pastes the prompt into
 their analytics chat, saves the answer as a `.csv` file, and sends it to you. Paste or drop it on the
-**Data** tab of `frontier-sizing.html` (or add it under **Extra CSV files** in the desktop app).
+**Data** tab of `aisizing.html` (or add it under **Extra CSV files** in the desktop app).
 
 The analytics chats can't send a full day × user × product × model grid in one reply; it's too long.
 So each prompt asks for three small tables that fit in one answer, about 300 rows for a 50-user org:
@@ -11,7 +11,7 @@ So each prompt asks for three small tables that fit in one answer, about 300 row
 2. **Each user's total** for the 30 days.
 3. **Totals per product and model** for the 30 days (the model mix, which sets the API price).
 
-The web page (`frontier-sizing.html`) combines them. Daily totals per product, each user's total and
+The web page (`aisizing.html`) combines them. Daily totals per product, each user's total and
 each product/model total stay exact. Each user's split by day and model is estimated from their share,
 and the report says so. The desktop app loads table 1 only.
 

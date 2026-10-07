@@ -1,6 +1,6 @@
 // ===================================================================== Data tab (web page only)
 // The browser does what fetch_usage.py does for the desktop app: parse the analytics-chat CSVs,
-// price them, build the payload and the Grafana JSON. Built into frontier-sizing.html by build_web.py.
+// price them, build the payload and the Grafana JSON. Built into aisizing.html by build_web.py.
 
 const WEB = /*__WEB_CONFIG__*/null;  // prices, fallback, tokens_per_message, catalog, prompts
 const intake = { sources: [], prompt: 0, pasted: 0 };
@@ -481,7 +481,8 @@ function addSource(name, text) {
     if (/^\s*[{[]/.test(text)) {  // a usage.json from the desktop app
       const j = JSON.parse(text);
       parsed = { rows: (Array.isArray(j) ? j : j.rows || []).map((r) => mkRow(r.date, r.provider, r.user, r.model,
-        num(r.input_tokens), num(r.output_tokens), num(r.cached_tokens), num(r.requests), r.tenant)), userTotals: [], modelMix: [], estimated: 0 };
+        num(r.input_tokens), num(r.output_tokens), num(r.cached_tokens), num(r.requests), r.tenant,
+        num(r.cache_write_5m), num(r.cache_write_1h))), userTotals: [], modelMix: [], estimated: 0 };
     } else parsed = parseUsage(text, name.replace(/\.[^.]+$/, ""));
     intake.sources = intake.sources.filter((s) => !s.demo);
     intake.sources.push({ name, ...parsed });

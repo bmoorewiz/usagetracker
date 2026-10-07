@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build frontier-sizing.html: the whole tool as one standalone web page.
+"""Build aisizing.html: the whole tool as one standalone web page.
 
 The page has a Data tab where a sales rep copies the analytics-chat prompts, pastes or drops the
 answers, and builds the same Usage / On-prem sizing / Grafana report the desktop app makes. It
@@ -9,8 +9,9 @@ intranet, GitHub Pages). Customer data stays in the browser.
 Prompts come from ANALYTICS_PROMPTS.md, prices and hardware from catalog.py. Re-run after
 editing either:  python3 build_web.py
 
-Writes two identical pages: dist/index.html to upload to a web server (it is the whole site: no
-other files, no server-side code), and frontier-sizing.html to email or open locally. A
+Writes two identical copies of aisizing.html: dist/aisizing.html to upload to a web server (it is
+the whole site: no other files, no server-side code), and one in the project folder to email or
+open locally. A
 Content-Security-Policy in the page blocks every network request, so a customer's data can't
 leave the browser even if the page were tampered with in transit; serve it over HTTPS anyway.
 """
@@ -23,7 +24,7 @@ import catalog
 from fetch_usage import HERE, TEMPLATE, TOKENS_PER_MESSAGE, _logo, _script_json
 
 WEB = HERE / "web"
-OUT = HERE / "frontier-sizing.html"
+OUT = HERE / "aisizing.html"
 DIST = HERE / "dist"
 
 # Only inline code and data: URIs; no fetch/XHR/beacons, no external scripts, fonts or images.
@@ -72,10 +73,10 @@ def build() -> Path:
         html = html.replace(marker, value, 1 if marker == "</style>" else -1)
     OUT.write_text(html, encoding="utf-8")
     DIST.mkdir(exist_ok=True)
-    (DIST / "index.html").write_text(html, encoding="utf-8")
+    (DIST / "aisizing.html").write_text(html, encoding="utf-8")
     return OUT
 
 
 if __name__ == "__main__":
     out = build()
-    print(f"Wrote {out} and {DIST / 'index.html'} ({out.stat().st_size // 1024} KB)")
+    print(f"Wrote {out} and {DIST / 'aisizing.html'} ({out.stat().st_size // 1024} KB)")

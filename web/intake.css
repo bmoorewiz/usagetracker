@@ -1,0 +1,31 @@
+/* Data tab (web page only) */
+.app-only { display: none; }
+.tabs button:disabled { opacity: 0.4; cursor: default; }
+.intake { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.intake > .card:last-child { grid-column: 1 / -1; }
+@media (max-width: 900px) { .intake { grid-template-columns: minmax(0, 1fr); } }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { font: inherit; background: var(--surface-1); color: var(--text-secondary); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-checked="true"] { background: var(--brand); color: var(--brand-ink); }
+pre.prompt {
+  background: var(--field); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+  max-height: 340px; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.5; margin: 8px 0 10px;
+}
+#in-paste {
+  width: 100%; min-height: 170px; resize: vertical; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text-primary); background: var(--field); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+}
+#in-drop.dragging { outline: 2px dashed var(--s1); outline-offset: -6px; }
+.in-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.in-actions label.btn { display: inline-flex; align-items: center; }
+.in-msg { font-size: 12px; color: var(--bad); margin: 0; min-height: 0; }
+.in-msg:empty { display: none; }
+.in-sources { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.in-src { display: flex; gap: 10px; align-items: start; justify-content: space-between;
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--page); }
+.in-src b { font-weight: 600; }
+.in-src .notes { display: block; }
+.in-src .warn { color: var(--warn); }
+.in-src button { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
+.in-src button:hover { color: var(--text-primary); }

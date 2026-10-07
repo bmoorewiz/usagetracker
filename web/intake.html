@@ -1,0 +1,41 @@
+  <!-- ===================================================== Data (web page only) -->
+  <section id="tab-data" role="tabpanel" hidden>
+    <div class="intake">
+      <div class="card">
+        <h2>1. Get the usage from the customer</h2>
+        <p class="hint">An admin pastes this prompt into their analytics chat and sends you the answer.
+          Use one prompt per provider.</p>
+        <div class="seg" id="in-pick" role="radiogroup" aria-label="Analytics chat"></div>
+        <p class="notes" id="in-where"></p>
+        <pre class="prompt" id="in-prompt" tabindex="0"></pre>
+        <button class="btn primary" id="in-copy" type="button">Copy prompt</button>
+        <span class="notes" id="in-copied" aria-live="polite"></span>
+      </div>
+
+      <div class="card" id="in-drop">
+        <h2>2. Add the answers</h2>
+        <p class="hint">Paste what the chat returned, or drop the .csv files here, including the CSVs claude.ai's
+          analytics chat lets you download (drop all of them; overlapping ones aren't double-counted) and Claude
+          Console usage exports. Add as many providers as you like.</p>
+        <textarea id="in-paste" spellcheck="false"
+          placeholder="date,provider,user,model,input_tokens,output_tokens,cached_tokens,requests,tenant,messages&#10;2026-09-01,claude enterprise,jane@example.com,claude-opus-5,1200000,45000,2100000,30,Cowork,"></textarea>
+        <div class="in-actions">
+          <button class="btn" id="in-add" type="button">Add pasted data</button>
+          <label class="btn">Choose files… <input type="file" id="in-files" multiple accept=".csv,.txt,.json" hidden></label>
+        </div>
+        <p class="in-msg" id="in-msg" role="alert"></p>
+        <div class="in-sources" id="in-sources"></div>
+      </div>
+
+      <div class="card">
+        <h2>3. Build the report</h2>
+        <p class="hint">Opens the Usage, On-prem sizing and Grafana tabs. You can come back here to add more data
+          and rebuild.</p>
+        <div class="in-actions">
+          <button class="btn primary" id="in-build" type="button" disabled>Build report</button>
+          <button class="btn" id="in-demo" type="button">Try with sample data</button>
+        </div>
+        <p class="notes">Everything runs in this browser. The customer's data isn't uploaded anywhere.</p>
+      </div>
+    </div>
+  </section>

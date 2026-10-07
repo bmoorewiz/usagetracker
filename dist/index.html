@@ -1,0 +1,1568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frontier usage &amp; on-prem sizing</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="description" content="CTG Federal: frontier model usage and on-prem AI cluster sizing">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#1b2556">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231b2556'/><text x='16' y='22' font-family='Arial,sans-serif' font-size='15' font-weight='700' fill='white' text-anchor='middle'>CTG</text></svg>">
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --border: rgba(11,11,11,0.10);
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --other: #b5b4ad; --field: #ffffff;
+  --s1: #2f4ab0; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #0e8fa8; --s8: #e34948;
+  /* CTG Federal navy (from the logo) for buttons, tabs and headings; --s1 is its chart-weight step */
+  --brand: #1b2556; --brand-ink: #ffffff; --brand-accent: #1b2556;
+  --good: #1f8a4c; --warn: #b7791f; --bad: #c2402f;
+  --api: var(--s1); --onprem: var(--s3);
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --other: #5c5b57; --field: #121211;
+    --s1: #6f86e8; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #13a3a8; --s8: #e66767;
+    --brand: #2f4ab0; --brand-ink: #ffffff; --brand-accent: #8fa0ee;
+    --good: #3fb871; --warn: #e0a43a; --bad: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root {
+  min-height: 100vh; background: var(--page); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px;
+}
+header { position: relative; margin-bottom: 14px; padding-right: 200px; }
+header .logo { position: absolute; top: 0; right: 0; width: 170px; }
+header .logo.dark { display: none; }
+@media (prefers-color-scheme: dark) { header .logo.light { display: none; } header .logo.dark { display: block; } }
+@media (max-width: 700px) { header { padding-right: 0; } header .logo { position: static; display: block; margin-bottom: 8px; } }
+h1 { font-size: 20px; margin: 0 0 4px; color: var(--brand-accent); }
+.viz-root::before { content: ""; display: block; height: 4px; background: var(--brand); margin: -24px -24px 20px; }
+.sub { color: var(--text-secondary); margin: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tabs button {
+  font: inherit; font-weight: 500; color: var(--text-secondary); background: none; border: 0;
+  border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--brand-accent); border-bottom-color: var(--brand-accent); }
+.tabs button:hover { color: var(--text-primary); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: end; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+select, input[type=search] {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 150px;
+}
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.tile .label { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.tile .value { font-size: 28px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .note { font-size: 12px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+.card h2 { font-size: 15px; margin: 0 0 2px; }
+.card .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i, .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .lbl { fill: var(--text-secondary); }
+svg .val { fill: var(--text-primary); font-weight: 600; }
+.tip {
+  position: fixed; pointer-events: none; z-index: 10; display: none; min-width: 180px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.tip b { display: block; margin-bottom: 4px; }
+.tip .r { display: flex; justify-content: space-between; gap: 16px; color: var(--text-secondary); }
+.tip .r span:last-child { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { color: var(--text-secondary); font-weight: 500; position: sticky; top: 0; background: var(--surface-1); }
+#table th { cursor: pointer; user-select: none; }
+.tablewrap { max-height: 480px; overflow: auto; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+.banner { background: var(--surface-1); border: 1px dashed var(--axis); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; color: var(--text-secondary); font-size: 12px; }
+
+/* on-prem sizing */
+.verdict { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 12px; }
+.verdict .subv { display: block; font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-top: 6px; }
+.sz-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .sz-grid { grid-template-columns: 1fr; } }
+.sz-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sz-main .grid2 { margin: 0; }
+.inputs h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin: 14px 0 6px; font-weight: 600; }
+.inputs h3:first-child { margin-top: 0; }
+.field { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; }
+.field label { font-size: 13px; color: var(--text-secondary); }
+.field label small { display: block; font-size: 11px; color: var(--muted); }
+.field input, .field select, .hw input {
+  font: inherit; font-size: 13px; color: var(--text-primary); background: var(--field); text-align: right;
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; width: 96px; font-variant-numeric: tabular-nums;
+}
+.field select { width: 100%; text-align: left; min-width: 0; }
+.inputs details { margin-top: 14px; }
+.inputs summary { cursor: pointer; font-size: 13px; font-weight: 500; }
+.hw { width: 100%; font-size: 12px; margin-top: 8px; }
+.hw td, .hw th { padding: 3px 2px; text-align: right; }
+.hw th:first-child, .hw td:first-child { text-align: left; }
+.hw input { width: 100%; min-width: 58px; padding: 3px 4px; font-size: 12px; }
+.linkbtn { font: inherit; font-size: 12px; background: none; border: 0; color: var(--s1); cursor: pointer; padding: 6px 0 0; }
+#sz-cmp tbody tr { cursor: pointer; }
+#sz-cmp tbody tr:hover td { background: var(--page); }
+#sz-cmp tr.sel td { background: color-mix(in srgb, var(--onprem) 12%, transparent); }
+#sz-cmp td small, .vend { display: block; font-size: 11px; color: var(--muted); }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; border: 1px solid currentColor; border-radius: 99px; padding: 0 7px; margin-left: 6px; vertical-align: 1px; }
+.rows > div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+.rows > div span:first-child { color: var(--text-secondary); }
+.rows > div span:last-child { font-variant-numeric: tabular-nums; }
+.rows > div.tot { font-weight: 600; border-bottom: 0; }
+.rows > div.tot span:first-child { color: var(--text-primary); }
+.bar { height: 10px; border-radius: 5px; background: var(--grid); overflow: hidden; margin: 10px 0 6px; }
+.bar div { height: 100%; border-radius: 5px; }
+.status { font-weight: 600; font-size: 13px; }
+.notes { font-size: 12px; color: var(--muted); margin: 0; }
+.notes li { margin: 2px 0; }
+.btn {
+  font: inherit; font-size: 13px; font-weight: 500; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--axis); }
+.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.btn.primary:hover { filter: brightness(1.15); }
+.btn.primary:disabled { opacity: 0.45; filter: none; cursor: default; }
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+ol.steps { padding-left: 20px; margin: 8px 0; }
+ol.steps li { margin: 6px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+.print-only { display: none; }
+@media print {
+  .viz-root, .viz-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .viz-root { padding: 0; background: #fff; }
+  .viz-root::before { margin: 0 0 12px; }
+  @page { size: letter; margin: 0.45in; }
+  .tabs, .filters, .noprint, .tip, #sz-inputs { display: none !important; }
+  .sz-grid { display: block; }
+  .card { break-inside: avoid; border-color: #cfd5dc; }
+  .print-only { display: block; }
+}
+/* Data tab (web page only) */
+.app-only { display: none; }
+.tabs button:disabled { opacity: 0.4; cursor: default; }
+.intake { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.intake > .card:last-child { grid-column: 1 / -1; }
+@media (max-width: 900px) { .intake { grid-template-columns: minmax(0, 1fr); } }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { font: inherit; background: var(--surface-1); color: var(--text-secondary); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-checked="true"] { background: var(--brand); color: var(--brand-ink); }
+pre.prompt {
+  background: var(--field); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+  max-height: 340px; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.5; margin: 8px 0 10px;
+}
+#in-paste {
+  width: 100%; min-height: 170px; resize: vertical; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text-primary); background: var(--field); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+}
+#in-drop.dragging { outline: 2px dashed var(--s1); outline-offset: -6px; }
+.in-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.in-actions label.btn { display: inline-flex; align-items: center; }
+.in-msg { font-size: 12px; color: var(--bad); margin: 0; min-height: 0; }
+.in-msg:empty { display: none; }
+.in-sources { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.in-src { display: flex; gap: 10px; align-items: start; justify-content: space-between;
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--page); }
+.in-src b { font-weight: 600; }
+.in-src .notes { display: block; }
+.in-src .warn { color: var(--warn); }
+.in-src button { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
+.in-src button:hover { color: var(--text-primary); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <img class="logo light" alt="CTG Federal" src="data:image/png;base64,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">
+    <img class="logo dark" alt="CTG Federal" src="data:image/png;base64,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">
+    <h1>Frontier model usage &amp; on-prem sizing</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+<button role="tab" data-tab="data" aria-selected="false">Data</button>
+    <button role="tab" data-tab="usage" aria-selected="true">Usage</button>
+    <button role="tab" data-tab="sizing" aria-selected="false">On-prem sizing</button>
+    <button role="tab" data-tab="grafana" aria-selected="false">Grafana</button>
+  </nav>
+  <div id="banner"></div>
+
+  <div class="filters" id="filters">
+    <label>Provider <select id="f-provider"></select></label>
+    <label>Tenant / workspace <select id="f-tenant"></select></label>
+    <label>Date range <select id="f-range">
+      <option value="7">Last 7 days</option><option value="14">Last 14 days</option>
+      <option value="30" selected>Last 30 days</option><option value="0">All loaded</option>
+    </select></label>
+    <label class="usage-only">Metric <select id="f-metric">
+      <option value="total">Total tokens (in + out + cached)</option>
+      <option value="billable">Input + output</option>
+      <option value="input_tokens">Input (uncached)</option>
+      <option value="output_tokens">Output</option>
+      <option value="cached_tokens">Cache reads</option>
+      <option value="cost_usd">API spend ($)</option>
+    </select></label>
+    <label>User search <input type="search" id="f-user" placeholder="email contains…"></label>
+    <label id="loader" style="display:none">Load usage.json <input type="file" id="f-file" accept=".json"></label>
+  </div>
+
+  <!-- ===================================================== Data (web page only) -->
+  <section id="tab-data" role="tabpanel" hidden>
+    <div class="intake">
+      <div class="card">
+        <h2>1. Get the usage from the customer</h2>
+        <p class="hint">An admin pastes this prompt into their analytics chat and sends you the answer.
+          Use one prompt per provider.</p>
+        <div class="seg" id="in-pick" role="radiogroup" aria-label="Analytics chat"></div>
+        <p class="notes" id="in-where"></p>
+        <pre class="prompt" id="in-prompt" tabindex="0"></pre>
+        <button class="btn primary" id="in-copy" type="button">Copy prompt</button>
+        <span class="notes" id="in-copied" aria-live="polite"></span>
+      </div>
+
+      <div class="card" id="in-drop">
+        <h2>2. Add the answers</h2>
+        <p class="hint">Paste what the chat returned, or drop the .csv files here, including the CSVs claude.ai's
+          analytics chat lets you download (drop all of them; overlapping ones aren't double-counted) and Claude
+          Console usage exports. Add as many providers as you like.</p>
+        <textarea id="in-paste" spellcheck="false"
+          placeholder="date,provider,user,model,input_tokens,output_tokens,cached_tokens,requests,tenant,messages&#10;2026-09-01,claude enterprise,jane@example.com,claude-opus-5,1200000,45000,2100000,30,Cowork,"></textarea>
+        <div class="in-actions">
+          <button class="btn" id="in-add" type="button">Add pasted data</button>
+          <label class="btn">Choose files… <input type="file" id="in-files" multiple accept=".csv,.txt,.json" hidden></label>
+        </div>
+        <p class="in-msg" id="in-msg" role="alert"></p>
+        <div class="in-sources" id="in-sources"></div>
+      </div>
+
+      <div class="card">
+        <h2>3. Build the report</h2>
+        <p class="hint">Opens the Usage, On-prem sizing and Grafana tabs. You can come back here to add more data
+          and rebuild.</p>
+        <div class="in-actions">
+          <button class="btn primary" id="in-build" type="button" disabled>Build report</button>
+          <button class="btn" id="in-demo" type="button">Try with sample data</button>
+        </div>
+        <p class="notes">Everything runs in this browser. The customer's data isn't uploaded anywhere.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Usage -->
+  <section id="tab-usage" role="tabpanel">
+    <div class="tiles" id="tiles"></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Tokens per user</h2>
+        <p class="hint">Stacked by provider, top 25 users</p>
+        <div class="legend" id="legend-users"></div>
+        <div id="chart-users"></div>
+      </div>
+      <div class="card">
+        <h2>Daily tokens, top users</h2>
+        <p class="hint">Top 7 users across all loaded data; everyone else is "Other"</p>
+        <div class="legend" id="legend-daily"></div>
+        <div id="chart-daily"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>User × model breakdown</h2>
+      <p class="hint">Click a column header to sort. Spend is estimated at list price.</p>
+      <div class="tablewrap"><table id="table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Sizing -->
+  <section id="tab-sizing" role="tabpanel" hidden>
+    <div class="row-actions noprint">
+      <button class="btn" id="sz-print" type="button">Print / Save PDF</button>
+    </div>
+    <div class="card verdict" id="sz-verdict"></div>
+    <div class="tiles" id="sz-tiles"></div>
+    <div class="sz-grid">
+      <aside class="card inputs" id="sz-inputs" aria-label="Sizing assumptions">
+        <h3>Horizon</h3>
+        <div class="field"><label for="sz-years">Years to model</label><input id="sz-years" type="number" min="1" max="8" step="1"></div>
+        <div class="field"><label for="sz-growth">Usage growth / yr<small>% more tokens each year</small></label><input id="sz-growth" type="number" step="5"></div>
+        <h3>Frontier API</h3>
+        <div class="field"><label for="sz-price_adj">Price vs list, %<small>negative = negotiated discount</small></label><input id="sz-price_adj" type="number" step="5"></div>
+        <div class="field"><label for="sz-seat">Seat fee $ / user / mo<small>enterprise plan, on top of tokens</small></label><input id="sz-seat" type="number" step="5" min="0"></div>
+        <h3>Workload shape</h3>
+        <div class="field"><label for="sz-onprem_model">Model to serve on-prem</label></div>
+        <div class="field"><select id="sz-onprem_model"></select></div>
+        <div class="field"><label for="sz-hours">Working hours / day<small>when the traffic lands</small></label><input id="sz-hours" type="number" min="1" max="24" step="1"></div>
+        <div class="field"><label for="sz-burst">Peak burst ×<small>busiest minutes vs average</small></label><input id="sz-burst" type="number" min="1" step="0.5"></div>
+        <div class="field"><label for="sz-util">Max utilization at peak %</label><input id="sz-util" type="number" min="10" max="100" step="5"></div>
+        <h3>Operating costs</h3>
+        <div class="field"><label for="sz-rate">Power $ / kWh</label><input id="sz-rate" type="number" step="0.01" min="0"></div>
+        <div class="field"><label for="sz-pue">PUE<small>cooling overhead</small></label><input id="sz-pue" type="number" step="0.05" min="1"></div>
+        <div class="field"><label for="sz-load">Avg draw, % of max<small>24/7 incl. idle</small></label><input id="sz-load" type="number" min="0" max="100" step="5"></div>
+        <div class="field"><label for="sz-ovh_kw">Switch / storage kW per system</label><input id="sz-ovh_kw" type="number" step="0.1" min="0"></div>
+        <div class="field"><label for="sz-sup_yrs">Support included, yrs</label><input id="sz-sup_yrs" type="number" min="0" step="1"></div>
+        <div class="field"><label for="sz-sup_pct">Support renewal<small>% of hardware / yr</small></label><input id="sz-sup_pct" type="number" min="0" step="1"></div>
+        <div class="field"><label for="sz-fte">Ops staff FTE</label><input id="sz-fte" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="sz-fte_cost">Loaded cost / FTE $</label><input id="sz-fte_cost" type="number" min="0" step="10000"></div>
+        <div class="field"><label for="sz-resid">Resale at end<small>% of hardware</small></label><input id="sz-resid" type="number" min="0" max="100" step="5"></div>
+        <details>
+          <summary>Hardware prices &amp; throughput</summary>
+          <p class="notes">Per system. Throughput is output tok/s for a ~1T-param open MoE model; prefill is uncached input tok/s. Untick to leave a system out.</p>
+          <table class="hw" id="sz-hw"></table>
+          <button class="linkbtn" id="sz-reset" type="button">Reset all assumptions</button>
+        </details>
+      </aside>
+
+      <div class="sz-main">
+        <section class="card">
+          <h2>Cluster options for this workload</h2>
+          <p class="hint">Each system type sized to carry the selected usage at peak, with systems added as usage grows. Click a row to chart it.</p>
+          <div class="tablewrap" style="max-height:none"><table id="sz-cmp"></table></div>
+        </section>
+        <section class="card">
+          <h2>Cumulative spend</h2>
+          <p class="hint" id="sz-chart-hint"></p>
+          <div class="legend" id="sz-legend"></div>
+          <div id="sz-chart"></div>
+        </section>
+        <div class="grid2">
+          <section class="card">
+            <h2>Workload measured from usage</h2>
+            <p class="hint" id="sz-profile-hint"></p>
+            <div class="rows" id="sz-profile"></div>
+          </section>
+          <section class="card">
+            <h2 id="sz-cap-title">Can it carry the team?</h2>
+            <p class="hint">Peak demand vs capacity in year 1, after any growth-driven additions.</p>
+            <div id="sz-cap"></div>
+          </section>
+        </div>
+        <div class="grid2">
+          <section class="card">
+            <h2>Where the on-prem money goes</h2>
+            <p class="hint" id="sz-break-hint"></p>
+            <div class="rows" id="sz-break"></div>
+          </section>
+          <section class="card">
+            <h2>Year by year</h2>
+            <p class="hint">Annual spend and running totals.</p>
+            <div class="tablewrap"><table id="sz-years-tbl"></table></div>
+          </section>
+        </div>
+        <section class="card">
+          <h2>How this is worked out</h2>
+          <ul class="notes" id="sz-notes"></ul>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Grafana -->
+  <section id="tab-grafana" role="tabpanel" hidden>
+    <div class="grid2">
+      <div class="card">
+        <h2>Put this report in Grafana</h2>
+        <p class="hint">The dashboard carries its own data, so nothing else needs to be set up besides the free Infinity plugin.</p>
+        <p><b>Easiest:</b> in the Frontier Usage app, fill in your Grafana address and a service-account token under
+          "Grafana" and click <i>Publish to Grafana</i>. It creates or updates this dashboard for you.</p>
+        <p><b>Or import it by hand:</b></p>
+        <ol class="steps">
+          <li><button class="btn primary" id="gf-download" type="button">Download Grafana dashboard JSON</button>
+            <span class="notes app-only">(also saved next to this report as <code>grafana-dashboard.json</code>)</span></li>
+          <li>Make sure the <b>Infinity</b> data source plugin is installed: <i>Administration → Plugins</i>, search "Infinity"
+            (Grafana Cloud has it), or on the server: <code>grafana-cli plugins install yesoreyeram-infinity-datasource</code></li>
+          <li>Add an Infinity data source if you don't have one: <i>Connections → Data sources → Add → Infinity</i>, then Save.</li>
+          <li><i>Dashboards → New → Import</i>, upload the JSON, pick the Infinity data source, and click Import.</li>
+        </ol>
+        <p class="notes">Each report makes a fresh snapshot. Re-importing (or re-publishing) replaces the dashboard with the same name.</p>
+      </div>
+      <div class="card">
+        <h2>What's on the Grafana dashboard</h2>
+        <p class="hint" id="gf-sub"></p>
+        <div class="rows" id="gf-panels"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const EMBEDDED = /*__USAGE_DATA__*/null;
+let GRAFANA = /*__GRAFANA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(v).trim();
+const fmt = (n) => n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(Math.round(n));
+const full = (n) => Math.round(n).toLocaleString();
+const usd = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(2) + "M"; if (a >= 1e4) return s + "$" + Math.round(a / 1e3) + "K"; if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K"; return s + "$" + Math.round(a); };
+const usdFull = (v) => (v < 0 ? "-$" : "$") + Math.round(Math.abs(v)).toLocaleString("en-US");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const SLOTS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"];
+
+let DATA = null, providerColor = {}, userColor = {}, topUsers = [], sortKey = "total", sortDir = -1;
+let activeTab = "usage";
+
+function metricOf(r, m) {
+  if (m === "total") return r.input_tokens + r.output_tokens + r.cached_tokens;
+  if (m === "billable") return r.input_tokens + r.output_tokens;
+  return r[m] || 0;
+}
+const isMoney = () => $("f-metric").value === "cost_usd";
+const fmtM = (v) => isMoney() ? usd(v) : fmt(v);
+const fullM = (v) => isMoney() ? usdFull(v) : full(v);
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+// Colors are bound to entities once, from the full dataset, so filters never repaint survivors.
+function assignColors() {
+  const provTotals = {}, userTotals = {};
+  for (const r of DATA.rows) {
+    const t = metricOf(r, "total");
+    provTotals[r.provider] = (provTotals[r.provider] || 0) + t;
+    userTotals[r.user] = (userTotals[r.user] || 0) + t;
+  }
+  Object.keys(provTotals).sort((a, b) => provTotals[b] - provTotals[a])
+    .forEach((p, i) => providerColor[p] = i < SLOTS.length ? SLOTS[i] : "--other");
+  topUsers = Object.keys(userTotals).sort((a, b) => userTotals[b] - userTotals[a]).slice(0, 7);
+  topUsers.forEach((u, i) => userColor[u] = SLOTS[i]);
+}
+
+function fillSelect(id, values, allLabel) {
+  $(id).innerHTML = `<option value="">${allLabel}</option>` + values.map((v) => `<option>${esc(v)}</option>`).join("");
+}
+
+function dayShift(iso, n) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 864e5);
+
+// Calendar days covered by the current date filter.
+function spanDates() {
+  const total = daysBetween(DATA.start, DATA.end) + 1, days = +$("f-range").value;
+  const n = days ? Math.min(days, total) : total;
+  return Array.from({ length: n }, (_, i) => dayShift(DATA.end, i - n + 1));
+}
+
+function filtered() {
+  const prov = $("f-provider").value, ten = $("f-tenant").value, q = $("f-user").value.toLowerCase();
+  const minDate = spanDates()[0];
+  return DATA.rows.filter((r) => (!prov || r.provider === prov) && (!ten || r.tenant === ten) &&
+    (!q || r.user.toLowerCase().includes(q)) && r.date >= minDate);
+}
+
+function showTip(evt, html) {
+  const t = $("tip");
+  t.innerHTML = html;
+  t.style.display = "block";
+  const w = t.offsetWidth, h = t.offsetHeight;
+  let x = evt.clientX + 14, y = evt.clientY + 14;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = evt.clientY - h - 14;
+  t.style.left = x + "px"; t.style.top = y + "px";
+}
+const hideTip = () => $("tip").style.display = "none";
+const sw = (v) => `<i style="background:${css(v)}"></i>`;
+
+// ===================================================================== Usage tab
+
+function renderTiles(rows, metric) {
+  const total = rows.reduce((s, r) => s + metricOf(r, metric), 0);
+  const spend = rows.reduce((s, r) => s + (r.cost_usd || 0), 0);
+  const byUser = {}, byModel = {};
+  for (const r of rows) {
+    byUser[r.user] = (byUser[r.user] || 0) + metricOf(r, metric);
+    byModel[r.model] = (byModel[r.model] || 0) + metricOf(r, metric);
+  }
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0] || ["—", 0];
+  const [tu, tuv] = top(byUser), [tm, tmv] = top(byModel);
+  const users = Object.keys(byUser).length;
+  const pct = (v) => total ? ` · ${(100 * v / total).toFixed(0)}% of total` : "";
+  const span = spanDates().length;
+  $("tiles").innerHTML = [
+    [isMoney() ? "API spend" : "Tokens", fmtM(total), $("f-metric").selectedOptions[0].text],
+    ["API spend (est.)", usd(spend), `${usd(spend / span * 30.44)} / month run-rate`],
+    ["Active users", users, users ? `${fmtM(total / users)} per user` : ""],
+    ["Top user", esc(tu), fmtM(tuv) + pct(tuv)],
+    ["Top model", esc(tm), fmtM(tmv) + pct(tmv)],
+  ].map(([l, v, n]) => `<div class="card tile"><div class="label">${l}</div><div class="value" title="${v}">${v}</div><div class="note">${n}</div></div>`).join("");
+}
+
+function renderUsers(rows, metric) {
+  const box = $("chart-users");
+  box.innerHTML = "";
+  const providers = [...new Set(rows.map((r) => r.provider))].sort((a, b) => SLOTS.indexOf(providerColor[a]) - SLOTS.indexOf(providerColor[b]));
+  $("legend-users").innerHTML = providers.length > 1 ? providers.map((p) => `<span>${sw(providerColor[p])}${esc(p)}</span>`).join("") : "";
+  const agg = {};
+  for (const r of rows) {
+    const a = agg[r.user] ||= { user: r.user, total: 0, by: {} };
+    const v = metricOf(r, metric);
+    a.total += v; a.by[r.provider] = (a.by[r.provider] || 0) + v;
+  }
+  const list = Object.values(agg).sort((a, b) => b.total - a.total).slice(0, 25);
+  if (!list.length) { box.innerHTML = `<div class="empty">No usage in this selection</div>`; return; }
+
+  const W = box.clientWidth || 600, labelW = Math.min(200, W * 0.32), valW = 56, barH = 16, gap = 8, top = 20;
+  const H = top + list.length * (barH + gap);
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Usage per user" }, box);
+  const max = niceMax(list[0].total), x0 = labelW, plotW = W - labelW - valW;
+  for (let i = 0; i <= 4; i++) {
+    const x = x0 + plotW * i / 4;
+    el("line", { x1: x, x2: x, y1: top - 4, y2: H, stroke: css(i ? "--grid" : "--axis"), "stroke-width": 1 }, svg);
+    el("text", { x, y: 11, "text-anchor": "middle" }, svg).textContent = fmtM(max * i / 4);
+  }
+  list.forEach((a, i) => {
+    const y = top + i * (barH + gap);
+    const name = a.user.length > 30 ? a.user.slice(0, 29) + "…" : a.user;
+    el("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end", class: "lbl" }, svg).textContent = name;
+    let x = x0;
+    const segs = providers.filter((p) => a.by[p] > 0);
+    segs.forEach((p, j) => {
+      const w = plotW * a.by[p] / max, last = j === segs.length - 1;
+      const drawW = Math.max(0, w - (last ? 0 : 2)); // 2px surface gap between stacked segments
+      if (last && drawW > 4) {
+        // round only the data end
+        const r = 4, xe = x + drawW;
+        el("path", { d: `M${x},${y}H${xe - r}Q${xe},${y} ${xe},${y + r}V${y + barH - r}Q${xe},${y + barH} ${xe - r},${y + barH}H${x}Z`, fill: css(providerColor[p]) }, svg);
+      } else {
+        el("rect", { x, y, width: drawW, height: barH, fill: css(providerColor[p]) }, svg);
+      }
+      x += w;
+    });
+    el("text", { x: x + 6, y: y + barH / 2 + 4, class: "val" }, svg).textContent = fmtM(a.total);
+    const hit = el("rect", { x: 0, y: y - gap / 2, width: W, height: barH + gap, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(e, `<b>${esc(a.user)}</b>` +
+      segs.map((p) => `<div class="r"><span>${sw(providerColor[p])}${esc(p)}</span><span>${fullM(a.by[p])}</span></div>`).join("") +
+      `<div class="r"><span>Total</span><span>${fullM(a.total)}</span></div>`));
+    hit.addEventListener("mouseleave", hideTip);
+  });
+}
+
+function renderDaily(rows, metric) {
+  const box = $("chart-daily");
+  box.innerHTML = "";
+  const dates = [...new Set(rows.map((r) => r.date))].sort();
+  if (!dates.length) { box.innerHTML = `<div class="empty">No usage in this selection</div>`; return; }
+  const series = {};
+  for (const r of rows) {
+    const key = userColor[r.user] ? r.user : "Other";
+    (series[key] ||= {})[r.date] = (series[key][r.date] || 0) + metricOf(r, metric);
+  }
+  const keys = topUsers.filter((u) => series[u]).concat(series.Other ? ["Other"] : []);
+  const color = (k) => css(k === "Other" ? "--other" : userColor[k]);
+  $("legend-daily").innerHTML = keys.map((k) => `<span><i style="background:${color(k)}"></i>${esc(k)}</span>`).join("");
+
+  const W = box.clientWidth || 600, H = 300, m = { l: 52, r: 12, t: 10, b: 28 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const max = niceMax(Math.max(...keys.flatMap((k) => dates.map((d) => series[k][d] || 0))));
+  const X = (i) => m.l + (dates.length === 1 ? pw / 2 : pw * i / (dates.length - 1));
+  const Y = (v) => m.t + ph - ph * v / max;
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Daily usage by user" }, box);
+  for (let i = 0; i <= 4; i++) {
+    const y = Y(max * i / 4);
+    el("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: css(i ? "--grid" : "--axis") }, svg);
+    el("text", { x: m.l - 6, y: y + 4, "text-anchor": "end" }, svg).textContent = fmtM(max * i / 4);
+  }
+  const step = Math.max(1, Math.ceil(dates.length / Math.max(2, Math.floor(pw / 70))));
+  dates.forEach((d, i) => {
+    if (i % step === 0 || i === dates.length - 1)
+      el("text", { x: X(i), y: H - 8, "text-anchor": "middle" }, svg).textContent = d.slice(5);
+  });
+  for (const k of keys) {
+    const pts = dates.map((d, i) => `${X(i)},${Y(series[k][d] || 0)}`).join(" ");
+    el("polyline", { points: pts, fill: "none", stroke: color(k), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+  const cross = el("line", { y1: m.t, y2: m.t + ph, stroke: css("--axis"), visibility: "hidden" }, svg);
+  const dots = keys.map((k) => el("circle", { r: 4, fill: color(k), stroke: css("--surface-1"), "stroke-width": 2, visibility: "hidden" }, svg));
+  const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (e) => {
+    const bx = svg.getBoundingClientRect().left;
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((e.clientX - bx - m.l) / pw * (dates.length - 1))));
+    const d = dates[i];
+    cross.setAttribute("x1", X(i)); cross.setAttribute("x2", X(i)); cross.setAttribute("visibility", "visible");
+    keys.forEach((k, j) => { dots[j].setAttribute("cx", X(i)); dots[j].setAttribute("cy", Y(series[k][d] || 0)); dots[j].setAttribute("visibility", "visible"); });
+    const ordered = keys.map((k) => [k, series[k][d] || 0]).sort((a, b) => b[1] - a[1]);
+    showTip(e, `<b>${d}</b>` + ordered.map(([k, v]) => `<div class="r"><span><i style="background:${color(k)}"></i>${esc(k)}</span><span>${fullM(v)}</span></div>`).join(""));
+  });
+  hit.addEventListener("mouseleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach((c) => c.setAttribute("visibility", "hidden")); });
+}
+
+function renderTable(rows, metric) {
+  const agg = {};
+  for (const r of rows) {
+    const k = r.user + "\u0000" + r.provider + "\u0000" + r.model;
+    const a = agg[k] ||= { user: r.user, model: `${r.provider} / ${r.model}`, input_tokens: 0, output_tokens: 0, cached_tokens: 0, requests: 0, cost_usd: 0, total: 0 };
+    a.input_tokens += r.input_tokens; a.output_tokens += r.output_tokens; a.cached_tokens += r.cached_tokens;
+    a.requests += r.requests; a.cost_usd += r.cost_usd || 0; a.total += metricOf(r, metric);
+  }
+  const list = Object.values(agg).sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  const cols = [["user", "User"], ["model", "Provider / model"], ["input_tokens", "Input"], ["output_tokens", "Output"],
+                ["cached_tokens", "Cache reads"], ["requests", "Requests"], ["cost_usd", "Spend"], ["total", "Selected metric"]];
+  const cell = (k, v) => typeof v !== "number" ? esc(v) : k === "cost_usd" || (k === "total" && isMoney()) ? usdFull(v) : full(v);
+  $("table").innerHTML = `<thead><tr>${cols.map(([k, l]) => `<th data-k="${k}">${l}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}</tr></thead>` +
+    `<tbody>${list.map((a) => `<tr>${cols.map(([k]) => `<td>${cell(k, a[k])}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
+    const k = th.dataset.k;
+    sortDir = k === sortKey ? -sortDir : (k === "user" || k === "model" ? 1 : -1);
+    sortKey = k; render();
+  });
+}
+
+// ===================================================================== On-prem sizing tab
+
+const SZ_FIELDS = ["years", "growth", "price_adj", "seat", "onprem_model", "hours", "burst", "util", "rate", "pue",
+                   "load", "ovh_kw", "sup_yrs", "sup_pct", "fte", "fte_cost", "resid"];
+const HW_FIELDS = [["price", "Price $", 10000], ["kw", "kW", 0.1], ["out_tps", "Out tok/s", 100], ["in_tps", "Prefill tok/s", 1000]];
+let szSelected = null, szLast = null;
+
+function szInit() {
+  const c = DATA.catalog;
+  $("sz-onprem_model").innerHTML = c.models.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  for (const f of SZ_FIELDS) $("sz-" + f).value = c.defaults[f];
+  $("sz-hw").innerHTML = `<thead><tr><th>System</th>${HW_FIELDS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
+    c.systems.map((s) => `<tr><td><label><input type="checkbox" data-sys="${s.id}" data-f="on" checked style="width:auto"> ${esc(s.name)}</label></td>` +
+      HW_FIELDS.map(([f, , st]) => `<td><input type="number" min="0" step="${st}" data-sys="${s.id}" data-f="${f}" value="${s[f]}"></td>`).join("") + `</tr>`).join("") + `</tbody>`;
+  szSelected = null;
+}
+
+function szParams() {
+  const P = {};
+  for (const f of SZ_FIELDS) {
+    const v = $("sz-" + f).value;
+    P[f] = f === "onprem_model" ? v : (isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+  }
+  P.years = Math.min(8, Math.max(1, Math.round(P.years)));
+  P.hours = Math.min(24, Math.max(1, P.hours));
+  P.burst = Math.max(1, P.burst);
+  P.util = Math.min(100, Math.max(10, P.util));
+  return P;
+}
+
+function szSystems() {
+  return DATA.catalog.systems.map((s) => {
+    const o = { ...s, on: true };
+    for (const inp of document.querySelectorAll(`#sz-hw input[data-sys="${s.id}"]`)) {
+      if (inp.dataset.f === "on") o.on = inp.checked;
+      else o[inp.dataset.f] = Math.max(0, parseFloat(inp.value) || 0);
+    }
+    return o;
+  }).filter((s) => s.on && s.price > 0 && s.out_tps > 0 && s.in_tps > 0);
+}
+
+const quantile = (arr, q) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[Math.max(0, Math.ceil(q * s.length) - 1)] : 0; };
+
+function workload(rows) {
+  const dates = spanDates(), byDay = {}, users = new Set(), byModel = {};
+  let cost = 0, inT = 0, outT = 0, cachedT = 0;
+  for (const r of rows) {
+    const d = byDay[r.date] ||= { inp: 0, out: 0 };
+    d.inp += r.input_tokens; d.out += r.output_tokens;
+    inT += r.input_tokens; outT += r.output_tokens; cachedT += r.cached_tokens;
+    cost += r.cost_usd || 0; users.add(r.user);
+    byModel[r.model] = (byModel[r.model] || 0) + (r.cost_usd || 0);
+  }
+  const ins = dates.map((d) => byDay[d]?.inp || 0), outs = dates.map((d) => byDay[d]?.out || 0);
+  return { span: dates.length, users: users.size, cost, inT, outT, cachedT, byModel,
+           p90In: quantile(ins, 0.9), p90Out: quantile(outs, 0.9),
+           activeDays: dates.filter((d) => byDay[d]).length };
+}
+
+// One system type, sized for the workload (times mult) with systems added at the start of any
+// year whose grown demand needs them. Returns monthly cumulative cost for it and for the API.
+function evaluate(sys, wl, P, mult = 1) {
+  const model = DATA.catalog.models.find((m) => m.id === P.onprem_model) || DATA.catalog.models[0];
+  const weights = model.weights_gb[sys.fp4 ? 1 : 0];
+  const perReplica = Math.max(1, Math.ceil(weights * 1.25 / sys.mem_gb)); // 25% for KV cache and activations
+  const capOut = sys.out_tps * model.speed, capIn = sys.in_tps * model.speed, u = P.util / 100;
+  const secs = P.hours * 3600, g = P.growth / 100, Y = P.years, M = Y * 12;
+  const demand = (gf) => ({ out: wl.p90Out * mult * gf / secs * P.burst, inp: wl.p90In * mult * gf / secs * P.burst });
+  const need = (gf) => {
+    const d = demand(gf);
+    const n = Math.max(1, Math.ceil(d.out / (capOut * u)), Math.ceil(d.inp / (capIn * u)));
+    return Math.ceil(n / perReplica) * perReplica;
+  };
+  const N = [];
+  for (let y = 0; y < Y; y++) N[y] = Math.max(y ? N[y - 1] : 0, need(Math.pow(1 + g, y)));
+
+  const apiMo = wl.cost * mult * (1 + P.price_adj / 100) / Math.max(1, wl.span) * 30.44, seatMo = wl.users * P.seat;
+  const br = { hw: N[0] * sys.price, fabric: Math.max(0, N[0] - 1) * sys.fabric, install: N[0] * sys.install, power: 0, staff: 0, support: 0, resid: 0 };
+  const api = [0], on = [br.hw + br.fabric + br.install], apiYr = [], onYr = [on[0]];
+  let fleetHw = br.hw;
+  for (let m = 1; m <= M; m++) {
+    const y = Math.floor((m - 1) / 12);
+    let d = 0;
+    if (y > 0 && (m - 1) % 12 === 0 && N[y] > N[y - 1]) {
+      const add = N[y] - N[y - 1];
+      br.hw += add * sys.price; br.fabric += add * sys.fabric; br.install += add * sys.install;
+      fleetHw += add * sys.price;
+      d += add * (sys.price + sys.fabric + sys.install);
+    }
+    const power = N[y] * (sys.kw * P.load / 100 + P.ovh_kw) * P.pue * 730 * P.rate;
+    const staff = P.fte * P.fte_cost / 12;
+    const support = m > P.sup_yrs * 12 ? fleetHw * P.sup_pct / 100 / 12 : 0;
+    br.power += power; br.staff += staff; br.support += support;
+    d += power + staff + support;
+    if (m === M) { br.resid = fleetHw * P.resid / 100; d -= br.resid; }
+    on.push(on[m - 1] + d);
+    const a = apiMo * Math.pow(1 + g, y) + seatMo;
+    api.push(api[m - 1] + a);
+    apiYr[y] = (apiYr[y] || 0) + a;
+    onYr[y] = (onYr[y] || 0) + d;
+  }
+  let be = null;
+  for (let m = 1; m <= M; m++) if (on[m] <= api[m]) { be = m; break; }
+  const d0 = demand(1), dEnd = demand(Math.pow(1 + g, Y - 1));
+  const util = (d, n) => Math.max(d.out / (capOut * n), d.inp / (capIn * n));
+  return { sys, N, M, perReplica, api, on, apiYr, onYr, be, total: on[M], apiTotal: api[M], br, apiMo,
+           d0, capOut, capIn, util0: util(d0, N[0]), utilEnd: util(dEnd, N[Y - 1]),
+           binding: d0.inp / capIn > d0.out / capOut ? "prefill (input)" : "generation (output)",
+           kw: N[0] * (sys.kw * P.load / 100 + P.ovh_kw) * P.pue };
+}
+
+const qty = (r) => r.N[0] === r.N[r.N.length - 1] ? `${r.N[0]}` : `${r.N[0]} → ${r.N[r.N.length - 1]}`;
+const label = (r, n = r.N[0]) => `${n > 1 ? n + "× " : ""}${r.sys.name}`;
+const beText = (be) => be ? `month ${be} (${(be / 12).toFixed(1)} yrs)` : "never";
+
+function renderSizing(rows) {
+  const P = szParams(), wl = workload(rows), systems = szSystems();
+  if (!wl.cost || !systems.length) {
+    $("sz-verdict").innerHTML = !systems.length ? "Tick at least one system under Hardware prices & throughput."
+      : `No priced usage in this selection<span class="subv">Change the filters above, or generate a report with usage data.</span>`;
+    ["sz-tiles", "sz-cmp", "sz-chart", "sz-profile", "sz-cap", "sz-break", "sz-years-tbl", "sz-legend"].forEach((id) => $(id).innerHTML = "");
+    return;
+  }
+  const opts = systems.map((s) => evaluate(s, wl, P)).sort((a, b) => a.total - b.total || a.N[0] - b.N[0]);
+  const best = opts[0], Y = P.years, saves = best.apiTotal - best.total;
+  if (!opts.find((o) => o.sys.id === szSelected)) szSelected = best.sys.id;
+  const sel = opts.find((o) => o.sys.id === szSelected);
+
+  // Verdict
+  const scope = [$("f-tenant").value, $("f-provider").value].filter(Boolean).join(" · ");
+  const forWho = `${wl.users} user${wl.users === 1 ? "" : "s"}${scope ? " in " + esc(scope) : ""}`;
+  if (saves > 0) {
+    $("sz-verdict").innerHTML = `Recommended: <span style="color:var(--onprem)">${label(best)}</span> pays for itself in ${beText(best.be)}` +
+      `<span class="subv">Saves ${usd(saves)} over ${Y} years versus ${usd(best.apiMo + wl.users * P.seat)}/month of frontier API spend today for ${forWho}` +
+      `${P.growth ? `, growing ${P.growth}%/yr` : ""}. ${best.N[Y - 1] > best.N[0] ? `Plan to grow to ${best.N[Y - 1]} systems by year ${best.N.findIndex((n) => n === best.N[Y - 1]) + 1}.` : ""}</span>`;
+  } else {
+    let k = null;
+    for (const m of [1.5, 2, 3, 4, 5, 7.5, 10, 15, 20, 30, 50, 75, 100]) {
+      if (systems.some((s) => { const r = evaluate(s, wl, P, m); return r.total < r.apiTotal; })) { k = m; break; }
+    }
+    $("sz-verdict").innerHTML = `Stay on frontier APIs for now: <span style="color:var(--api)">API is ${usd(-saves)} cheaper</span> over ${Y} years` +
+      `<span class="subv">At ${usd(best.apiMo + wl.users * P.seat)}/month for ${forWho}, the cheapest on-prem option (${label(best)}) doesn't pay back inside ${Y} years. ` +
+      (k ? `On-prem starts winning at about <b>${k}× today's usage</b>.` : `Even 100× today's usage doesn't justify on-prem with these assumptions.`) + `</span>`;
+  }
+
+  // KPI tiles
+  const tile = (l, v, n, c) => `<div class="card tile"><div class="label">${c ? `<span class="sw" style="background:${css(c)}"></span>` : ""}${l}</div><div class="value" title="${esc(v)}">${v}</div><div class="note">${n}</div></div>`;
+  $("sz-tiles").innerHTML = [
+    tile("API spend / month", usd(sel.apiMo + wl.users * P.seat), `${usd(sel.apiYr[0])} in year 1`, "--api"),
+    tile("Peak demand", fmt(sel.d0.out) + " tok/s", `output · ${fmt(sel.d0.inp)} tok/s prefill`),
+    tile(saves > 0 ? "Recommended cluster" : "Cheapest on-prem", label(best), `${best.N[0] * best.sys.gpus} GPUs · ${best.kw.toFixed(1)} kW avg`, "--onprem"),
+    tile("Breakeven", best.be ? `${(best.be / 12).toFixed(1)} yrs` : "Never", best.be ? `month ${best.be} of ${best.M}` : `within ${Y} years`, "--onprem"),
+  ].join("");
+
+  // Options table
+  $("sz-cmp").innerHTML = `<thead><tr><th>System</th><th>Qty</th><th>GPUs</th><th>Peak load</th><th>Avg kW</th><th>Upfront</th><th>${Y}-yr on-prem</th><th>vs API</th><th>Breakeven</th></tr></thead><tbody>` +
+    opts.map((r) => {
+      const d = r.apiTotal - r.total;
+      const tag = r === best ? `<span class="pill" style="color:${d > 0 ? "var(--good)" : "var(--text-secondary)"}">${d > 0 ? "Recommended" : "Cheapest"}</span>` : "";
+      return `<tr data-id="${r.sys.id}" class="${r === sel ? "sel" : ""}"><td>${esc(r.sys.name)}${tag}<small>${esc(r.sys.detail)}${r.perReplica > 1 ? ` · model needs ${r.perReplica} systems` : ""}</small></td>` +
+        `<td>${qty(r)}</td><td>${r.N[0] * r.sys.gpus}</td><td>${(r.util0 * 100).toFixed(0)}%</td><td>${r.kw.toFixed(1)}</td>` +
+        `<td>${usd(r.on[0])}</td><td>${usd(r.total)}</td>` +
+        `<td style="color:${d >= 0 ? "var(--good)" : "var(--text-secondary)"}">${d >= 0 ? "saves " : "costs +"}${usd(Math.abs(d))}</td><td>${r.be ? "Month " + r.be : "Never"}</td></tr>`;
+    }).join("") + `</tbody>`;
+  $("sz-cmp").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => { szSelected = tr.dataset.id; render(); }));
+
+  // Chart
+  $("sz-chart-hint").textContent = `Month by month over ${Y} years. On-prem jumps at month 0 (purchase)${sel.N[Y - 1] > sel.N[0] ? " and when systems are added" : ""}; resale is credited in the last month.`;
+  $("sz-legend").innerHTML = `<span><i style="background:${css("--api")}"></i>Frontier API (current mix)</span><span><i style="background:${css("--onprem")}"></i>${esc(label(sel))}</span>`;
+  szLast = { api: sel.api, on: sel.on, M: sel.M, be: sel.be, aName: "API", oName: label(sel) };
+  drawSizing();
+
+  // Workload profile
+  const cacheHit = wl.cachedT / Math.max(1, wl.inT + wl.cachedT) * 100;
+  const topModels = Object.entries(wl.byModel).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([m, c]) => `${esc(m)} ${(c / wl.cost * 100).toFixed(0)}%`).join(", ");
+  $("sz-profile-hint").textContent = `From ${wl.span} days of usage (${wl.activeDays} with traffic) matching the filters above.`;
+  $("sz-profile").innerHTML = [
+    ["Users", wl.users],
+    ["API spend in period", usdFull(wl.cost)],
+    ["Output tokens / day", `${fmt(wl.outT / wl.span)} avg · ${fmt(wl.p90Out)} busy day`],
+    ["Uncached input / day", `${fmt(wl.inT / wl.span)} avg · ${fmt(wl.p90In)} busy day`],
+    ["Cache reads / day", fmt(wl.cachedT / wl.span) + ` (${cacheHit.toFixed(0)}% hit rate)`],
+    ["Spend by model", topModels || "—"],
+  ].map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join("");
+
+  // Capacity
+  const pct = sel.util0 * 100;
+  const st = pct < 60 ? ["Plenty of headroom", "--good"] : pct <= P.util ? ["Fits at peak", "--good"] : pct < 100 ? ["Tight at peak", "--warn"] : ["Over capacity", "--bad"];
+  $("sz-cap-title").textContent = `Can ${label(sel)} carry the team?`;
+  $("sz-cap").innerHTML = `<span class="status" style="color:${css(st[1])}">● ${st[0]}</span>
+    <div class="bar"><div style="width:${Math.min(100, pct)}%;background:${css(st[1])}"></div></div>
+    <div class="rows">
+      <div><span>Peak output demand</span><span>${full(sel.d0.out)} tok/s</span></div>
+      <div><span>Output capacity (${sel.N[0]} system${sel.N[0] > 1 ? "s" : ""})</span><span>${full(sel.capOut * sel.N[0])} tok/s</span></div>
+      <div><span>Peak prefill demand</span><span>${full(sel.d0.inp)} tok/s</span></div>
+      <div><span>Prefill capacity</span><span>${full(sel.capIn * sel.N[0])} tok/s</span></div>
+      <div><span>Peak utilization, year 1 → ${Y}</span><span>${pct.toFixed(0)}% → ${(sel.utilEnd * 100).toFixed(0)}%</span></div>
+      <div><span>Limited by</span><span>${sel.binding}</span></div>
+    </div>`;
+
+  // Cost breakdown
+  const b = sel.br;
+  $("sz-break-hint").textContent = `${label(sel, sel.N[Y - 1])} over ${Y} years.`;
+  $("sz-break").innerHTML = [
+    [`Hardware (${sel.N[Y - 1]} × ${usd(sel.sys.price)})`, b.hw], ["Cluster fabric", b.fabric], ["Install / electrical", b.install],
+    [`Power (${sel.kw.toFixed(1)} kW avg at the meter, year 1)`, b.power], ["Ops staff", b.staff], ["Support renewals", b.support],
+    ["Resale credit", -b.resid],
+  ].filter(([n, v]) => v !== 0 || n.startsWith("Hardware")).map(([n, v]) => `<div><span>${n}</span><span>${usdFull(v)}</span></div>`).join("") +
+    `<div class="tot"><span>Total</span><span>${usdFull(sel.total)}</span></div>`;
+
+  // Year by year
+  let ca = 0, co = 0, rowsHtml = "";
+  for (let y = 0; y < Y; y++) {
+    const oy = sel.onYr[y];
+    ca += sel.apiYr[y]; co += oy;
+    rowsHtml += `<tr><td>Year ${y + 1}</td><td>${sel.N[y]}</td><td>${usd(sel.apiYr[y])}</td><td>${usd(oy)}</td><td>${usd(ca)}</td><td>${usd(co)}</td>` +
+      `<td style="color:${ca - co >= 0 ? "var(--good)" : "var(--text-secondary)"}">${ca - co >= 0 ? "On-prem +" : "API +"}${usd(Math.abs(ca - co))}</td></tr>`;
+  }
+  $("sz-years-tbl").innerHTML = `<thead><tr><th>Period</th><th>Systems</th><th>API</th><th>On-prem</th><th>API cum.</th><th>On-prem cum.</th><th>Ahead</th></tr></thead><tbody>${rowsHtml}</tbody>`;
+
+  // Method notes
+  const model = DATA.catalog.models.find((m) => m.id === P.onprem_model);
+  const unpriced = (DATA.unpriced_models || []).filter((m) => rows.some((r) => r.model === m));
+  const cc = rows.some((r) => r.provider.includes("claude code"));
+  $("sz-notes").innerHTML = [
+    `API cost is each row's tokens at list price for its model${P.price_adj ? `, ${P.price_adj > 0 ? "+" : ""}${P.price_adj}%` : ""}, scaled from ${wl.span} days to a 30.4-day month${P.seat ? `, plus $${P.seat}/user/month in seats` : ""}.`,
+    `Peak demand = the 90th-percentile day's tokens spread over a ${P.hours}-hour working day, × ${P.burst} for bursts. Each option is sized so peak stays under ${P.util}% of capacity.`,
+    `On-prem serves ${esc(model ? model.name : "")}; throughput figures are per system for that model class and are estimates. Change them under Hardware prices &amp; throughput.`,
+    `Prompt-cache reads are treated as free on-prem (prefix caching); uncached input costs prefill time.`,
+    unpriced.length ? `No list price known for ${unpriced.map(esc).join(", ")}; priced as a mid-tier model. Edit catalog.py to fix.` : "",
+    cc ? `Claude Code rows can overlap Anthropic API rows when Claude Code runs on API keys. Pick a single provider above if totals look doubled.` : "",
+    DATA.demo ? `This is sample data.` : "",
+  ].filter(Boolean).map((t) => `<li>${t}</li>`).join("");
+}
+
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+
+function drawSizing(printMode) {
+  if (!szLast || activeTab !== "sizing") return;
+  const { api, on, M, be, aName, oName } = szLast;
+  const box = $("sz-chart");
+  const W = printMode ? 720 : Math.max(320, box.clientWidth || 700), H = printMode ? 270 : Math.round(Math.min(340, Math.max(220, W * 0.42)));
+  const pl = 62, pr = 16, pt = 12, pb = 28, iw = W - pl - pr, ih = H - pt - pb;
+  const maxY = Math.max(...api, ...on) * 1.05, step = niceStep(maxY / 5), top = Math.ceil(maxY / step) * step;
+  const x = (m) => pl + m / M * iw, y = (v) => pt + ih - (Math.max(0, v) / top) * ih;
+  let g = "";
+  for (let v = 0; v <= top + 1e-6; v += step) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--grid")}"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end">${usd(v)}</text>`;
+  for (let yr = 0; yr <= M / 12; yr++) { const xx = x(yr * 12); g += `<line x1="${xx}" x2="${xx}" y1="${pt + ih}" y2="${pt + ih + 4}" stroke="${css("--axis")}"/><text x="${xx}" y="${H - 8}" text-anchor="middle">${yr === 0 ? "Start" : "Yr " + yr}</text>`; }
+  const path = (a) => a.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join("");
+  let beMark = "";
+  if (be) {
+    const right = x(be) > W * 0.7;
+    beMark = `<line x1="${x(be)}" x2="${x(be)}" y1="${pt}" y2="${pt + ih}" stroke="${css("--muted")}" stroke-dasharray="3 3"/>` +
+      `<circle cx="${x(be)}" cy="${y(on[be])}" r="5" fill="${css("--surface-1")}" stroke="${css("--text-primary")}" stroke-width="2"/>` +
+      `<text x="${x(be) + (right ? -8 : 8)}" y="${pt + 14}" class="val" text-anchor="${right ? "end" : "start"}">Breakeven · month ${be}</text>`;
+  }
+  const lab = (a, col, name, dy) => `<text x="${W - pr}" y="${y(a[M]) + dy}" text-anchor="end" class="lbl" font-weight="600">${esc(name)} ${usd(a[M])}</text><circle cx="${x(M)}" cy="${y(a[M])}" r="4" fill="${col}" stroke="${css("--surface-1")}" stroke-width="2"/>`;
+  const above = api[M] >= on[M], gap = Math.abs(y(api[M]) - y(on[M]));
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative cost, frontier API vs on-prem">
+    ${g}<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" stroke="${css("--axis")}"/>${beMark}
+    <path d="${path(on)}" fill="none" stroke="${css("--onprem")}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${path(api)}" fill="none" stroke="${css("--api")}" stroke-width="2" stroke-linejoin="round"/>
+    ${lab(api, css("--api"), aName, above || gap > 16 ? -8 : 16)}${lab(on, css("--onprem"), oName, !above || gap > 16 ? (above ? 16 : -8) : -8)}
+    <line id="sz-xh" y1="${pt}" y2="${pt + ih}" stroke="${css("--axis")}" visibility="hidden"/>
+    <rect id="sz-hit" x="${pl}" y="${pt}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
+  const hit = $("sz-hit"), xh = $("sz-xh"), sv = box.querySelector("svg");
+  const move = (ev) => {
+    const r = sv.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+    const m = Math.max(0, Math.min(M, Math.round((px - pl) / iw * M))), d = api[m] - on[m];
+    xh.setAttribute("x1", x(m)); xh.setAttribute("x2", x(m)); xh.setAttribute("visibility", "visible");
+    showTip(ev, `<b>Month ${m} <span style="font-weight:400;color:${css("--muted")}">(yr ${(m / 12).toFixed(1)})</span></b>` +
+      `<div class="r"><span>${sw("--api")}${esc(aName)}</span><span>${usdFull(api[m])}</span></div>` +
+      `<div class="r"><span>${sw("--onprem")}${esc(oName)}</span><span>${usdFull(on[m])}</span></div>` +
+      `<div class="r"><span>${d >= 0 ? "On-prem ahead" : "API ahead"}</span><span>${usd(Math.abs(d))}</span></div>`);
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { hideTip(); xh.setAttribute("visibility", "hidden"); });
+}
+
+// ===================================================================== Grafana tab
+
+function renderGrafana() {
+  if (!GRAFANA) {
+    $("gf-sub").textContent = "Load usage data to get a Grafana dashboard.";
+    $("gf-download").disabled = true;
+    return;
+  }
+  $("gf-download").disabled = false;
+  $("gf-sub").textContent = `"${GRAFANA.title}", ${GRAFANA.panels.length} panels, data for ${DATA.start} → ${DATA.end}.`;
+  const kinds = { stat: "Stat", timeseries: "Time series", barchart: "Bar chart", "status-history": "Usage map", piechart: "Donut", table: "Table" };
+  $("gf-panels").innerHTML = GRAFANA.panels.map((p) => `<div><span>${esc(p.title)}</span><span>${kinds[p.type] || p.type}</span></div>`).join("");
+}
+$("gf-download").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(GRAFANA, null, 1)], { type: "application/json" }));
+  a.download = "grafana-dashboard.json";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+// ===================================================================== wiring
+
+function render() {
+  $("filters").style.display = activeTab === "grafana" || activeTab === "data" ? "none" : "";
+  if (!DATA) return;
+  const rows = filtered();
+  document.querySelectorAll(".usage-only").forEach((e) => e.style.display = activeTab === "usage" ? "" : "none");
+  if (activeTab === "usage") {
+    const metric = $("f-metric").value;
+    renderTiles(rows, metric);
+    renderUsers(rows, metric);
+    renderDaily(rows, metric);
+    renderTable(rows, metric);
+  } else if (activeTab === "sizing") {
+    renderSizing(rows);
+  }
+}
+
+function showTab(name) {
+  activeTab = name && $("tab-" + name) ? name : "usage";
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === activeTab));
+  document.querySelectorAll("[role=tabpanel]").forEach((s) => s.hidden = s.id !== "tab-" + activeTab);
+  if (location.hash.slice(1) !== activeTab) history.replaceState(null, "", "#" + activeTab);
+  hideTip();
+  render();
+}
+
+function load(data) {
+  DATA = data;
+  providerColor = {}; userColor = {};
+  assignColors();
+  fillSelect("f-provider", [...new Set(DATA.rows.map((r) => r.provider))].sort(), "All providers");
+  fillSelect("f-tenant", [...new Set(DATA.rows.map((r) => r.tenant).filter(Boolean))].sort(), "All tenants");
+  $("sub").textContent = `${DATA.start} → ${DATA.end} · ${DATA.rows.length.toLocaleString()} rows · generated ${DATA.generated_at}`;
+  $("banner").innerHTML = (DATA.demo ? `<div class="banner">Sample data from a made-up 80-person organization, not a real customer.</div>` : "") +
+    (DATA.notes || []).map((n) => `<div class="banner">${esc(n)}</div>`).join("");
+  if (DATA.catalog) szInit();
+  else document.querySelector('[data-tab="sizing"]').hidden = true;
+  renderGrafana();
+  showTab(location.hash.slice(1));
+}
+
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+["f-provider", "f-tenant", "f-range", "f-metric"].forEach((id) => $(id).addEventListener("change", render));
+$("f-user").addEventListener("input", render);
+$("f-file").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) load(JSON.parse(await f.text())); });
+$("sz-inputs").addEventListener("input", () => render());
+$("sz-reset").addEventListener("click", () => { szInit(); render(); });
+$("sz-print").addEventListener("click", () => { drawSizing(true); print(); });
+addEventListener("beforeprint", () => drawSizing(true));
+addEventListener("afterprint", () => drawSizing());
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+
+// ===================================================================== Data tab (web page only)
+// The browser does what fetch_usage.py does for the desktop app: parse the analytics-chat CSVs,
+// price them, build the payload and the Grafana JSON. Built into frontier-sizing.html by build_web.py.
+
+const WEB = {"prices": [["fable", 10.0, 1.0, 50.0], ["opus-5-5", 4.0, 0.4, 20.0], ["opus-5.5", 4.0, 0.4, 20.0], ["opus-4-1", 15.0, 1.5, 75.0], ["opus-4-2025", 15.0, 1.5, 75.0], ["claude-3-opus", 15.0, 1.5, 75.0], ["opus", 5.0, 0.5, 25.0], ["sonnet", 3.0, 0.3, 15.0], ["haiku-3-5", 0.8, 0.08, 4.0], ["3-5-haiku", 0.8, 0.08, 4.0], ["claude-3-haiku", 0.25, 0.03, 1.25], ["haiku", 1.0, 0.1, 5.0], ["gpt-6", 10.0, 1.0, 50.0], ["gpt-5.6-sol", 4.0, 0.4, 20.0], ["gpt-5.6-terra", 2.0, 0.2, 12.0], ["gpt-5.5", 5.0, 0.5, 30.0], ["codex", 1.75, 0.175, 14.0], ["gpt-5-nano", 0.05, 0.005, 0.4], ["gpt-5-mini", 0.25, 0.025, 2.0], ["gpt-5", 1.25, 0.125, 10.0], ["gpt-4.1-nano", 0.1, 0.025, 0.4], ["gpt-4.1-mini", 0.4, 0.1, 1.6], ["gpt-4.1", 2.0, 0.5, 8.0], ["gpt-4o-mini", 0.15, 0.075, 0.6], ["gpt-4o", 2.5, 1.25, 10.0], ["o4-mini", 1.1, 0.275, 4.4], ["o3-mini", 1.1, 0.55, 4.4], ["o3", 2.0, 0.5, 8.0], ["o1", 15.0, 7.5, 60.0], ["gemini-3.6-flash", 1.5, 0.15, 7.5], ["gemini-3-flash", 0.5, 0.05, 3.0], ["flash-lite", 0.1, 0.01, 0.4], ["flash", 0.3, 0.03, 2.5], ["gemini", 2.0, 0.2, 12.0], ["grok", 3.0, 0.75, 15.0]], "fallback": [3.0, 0.3, 15.0], "tokens_per_message": [3000, 600], "catalog": {"systems": [{"id": "rtx6000", "name": "RTX PRO 6000 server", "detail": "8\u00d7 RTX PRO 6000 Blackwell Server Edition", "gpus": 8, "mem_gb": 768, "fp4": true, "price": 140000, "kw": 7.0, "out_tps": 1800, "in_tps": 15000, "fabric": 15000, "install": 10000, "ru": 4}, {"id": "h200", "name": "HGX H200", "detail": "8\u00d7 H200 141 GB, NVLink", "gpus": 8, "mem_gb": 1128, "fp4": false, "price": 330000, "kw": 10.2, "out_tps": 2600, "in_tps": 25000, "fabric": 40000, "install": 20000, "ru": 8}, {"id": "b200", "name": "DGX B200", "detail": "8\u00d7 B200 180 GB, NVLink 5", "gpus": 8, "mem_gb": 1440, "fp4": true, "price": 520000, "kw": 14.3, "out_tps": 6000, "in_tps": 60000, "fabric": 50000, "install": 25000, "ru": 10}, {"id": "b300", "name": "DGX B300", "detail": "8\u00d7 B300 288 GB, NVLink 5", "gpus": 8, "mem_gb": 2304, "fp4": true, "price": 850000, "kw": 14.5, "out_tps": 8000, "in_tps": 80000, "fabric": 60000, "install": 25000, "ru": 10}, {"id": "rubin8", "name": "HGX Rubin NVL8", "detail": "8\u00d7 Rubin 288 GB HBM4 (estimate)", "gpus": 8, "mem_gb": 2304, "fp4": true, "price": 1150000, "kw": 20.0, "out_tps": 18000, "in_tps": 200000, "fabric": 70000, "install": 40000, "ru": 10}, {"id": "vr72", "name": "Vera Rubin NVL72", "detail": "Rack: 72\u00d7 Rubin, 36\u00d7 Vera CPU, liquid cooled (estimate)", "gpus": 72, "mem_gb": 20736, "fp4": true, "price": 6500000, "kw": 190.0, "out_tps": 160000, "in_tps": 1800000, "fabric": 250000, "install": 150000, "ru": 48}], "models": [{"id": "large", "name": "Frontier-class open MoE (~1T params)", "weights_gb": [1050, 560], "speed": 1.0}, {"id": "mid", "name": "Mid-size open MoE (~300B params)", "weights_gb": [330, 180], "speed": 2.2}, {"id": "small", "name": "Efficient open model (~120B params)", "weights_gb": [125, 70], "speed": 5.0}], "defaults": {"years": 5, "growth": 25, "price_adj": 0, "seat": 0, "onprem_model": "large", "hours": 10, "burst": 2, "util": 80, "load": 60, "ovh_kw": 1.5, "pue": 1.3, "rate": 0.13, "sup_yrs": 3, "sup_pct": 8, "fte": 0.5, "fte_cost": 180000, "resid": 10}}, "prompts": [{"name": "Claude", "where": "claude.ai > Analytics > Analytics chat", "text": "Export my organization's Claude usage for the last 30 complete days (UTC) as three CSV tables, for a\ncapacity-planning tool. Include every product in the data. Use the product and model ids exactly as\nthe data labels them (for example chat, claude_code, cowork, office_agent; claude-opus-5-5).\nToken columns everywhere: input_tokens = uncached input plus 5-minute and 1-hour cache-write tokens,\noutput_tokens = output tokens, cached_tokens = cache-read input tokens, requests = number of requests.\n\nTABLE 1, daily usage: one row per day per product, every day in the window. Header:\ndate,provider,tenant,input_tokens,output_tokens,cached_tokens,requests\n(date is YYYY-MM-DD; provider is always \"claude enterprise\"; tenant is the product id)\n\nTABLE 2, per-user totals for the 30 days: one row per user with any usage. Header:\nprovider,user,input_tokens,output_tokens,cached_tokens,requests\n(user is the member's email address, or their name if there is no email)\n\nTABLE 3, model mix for the 30 days: one row per product and model. Header:\nprovider,tenant,model,input_tokens,output_tokens,cached_tokens,requests\n\nRules for all three tables:\n- Plain integers only: no commas, units, currency symbols or rounding to K/M.\n- Leave a cell empty if the value isn't in the data. Never estimate, and never drop rows to save space.\n- Skip rows where every number is zero.\n- Answer in this one reply. Don't ask me anything or offer options, and don't stop partway. If something\n  isn't available, still output the three tables and add a short note on its own line starting with #\n  after them.\n- Output only the three CSV tables and any # notes, in this order, each starting with its header line."}, {"name": "ChatGPT", "where": "ChatGPT Enterprise > Workspace settings > Analytics, or the workspace analytics chat", "text": "Export my workspace's ChatGPT usage for the last 30 complete days (UTC) as three CSV tables, for a\ncapacity-planning tool. Include every product the workspace uses (ChatGPT, Codex, GPTs, Agent,\nDeep Research, API usage tied to the workspace), named as the data names them.\nToken columns everywhere: input_tokens, output_tokens and cached_tokens are token counts if the data\nhas them; requests = number of requests; messages = number of messages sent. Token counts are often\nnot available for ChatGPT seats; then leave the three token columns empty and always fill in messages.\n\nTABLE 1, daily usage: one row per day per product, every day in the window. Header:\ndate,provider,tenant,input_tokens,output_tokens,cached_tokens,requests,messages\n(date is YYYY-MM-DD; provider is always \"chatgpt enterprise\"; tenant is the product)\n\nTABLE 2, per-user totals for the 30 days: one row per user with any usage. Header:\nprovider,user,input_tokens,output_tokens,cached_tokens,requests,messages\n(user is the member's email address, or their name if there is no email)\n\nTABLE 3, model mix for the 30 days: one row per product and model. Header:\nprovider,tenant,model,input_tokens,output_tokens,cached_tokens,requests,messages\n\nRules for all three tables:\n- Plain integers only: no commas, units, currency symbols or rounding to K/M.\n- Leave a cell empty if the value isn't in the data. Never estimate, and never drop rows to save space.\n- Skip rows where every number is zero.\n- Answer in this one reply. Don't ask me anything or offer options, and don't stop partway. If something\n  isn't available, still output the three tables and add a short note on its own line starting with #\n  after them.\n- Output only the three CSV tables and any # notes, in this order, each starting with its header line."}]};  // prices, fallback, tokens_per_message, catalog, prompts
+const intake = { sources: [], prompt: 0, pasted: 0 };
+
+// ---------------------------------------------------------- parsing
+
+const num = (v) => {
+  let t = String(v ?? "").trim().replace(/[,$_\s]/g, "").toUpperCase();
+  if (!t) return 0;
+  const mult = { K: 1e3, M: 1e6, B: 1e9 }[t.slice(-1)];
+  if (mult) t = t.slice(0, -1);
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n * (mult || 1) : 0;
+};
+
+function csvCells(line) {
+  const out = [];
+  let cur = "", quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quoted) {
+      if (c !== '"') cur += c;
+      else if (line[i + 1] === '"') { cur += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+const pipeCells = (line) => line.trim().replace(/^\||\|$/g, "").split("|").map((s) => s.trim());
+
+// Analytics product ids -> the names the desktop app uses (fetch_usage.PRODUCT_NAMES), so a paste with
+// ids and one with names land in the same tenant.
+const PRODUCT_NAMES = { chat: "Claude chat", claude_code: "Claude Code", cowork: "Cowork", office_agent: "Claude for Office",
+  claude_in_chrome: "Claude in Chrome", claude_design: "Claude Design", "claude-tag": "Claude in Slack", voice_mode: "Voice mode", other: "Other",
+  "claude chat": "Claude chat", "claude in slack": "Claude in Slack", "claude for office": "Claude for Office",
+  "claude in chrome": "Claude in Chrome", "claude design": "Claude Design", "claude code": "Claude Code" };
+const tenantName = (t) => { const k = (t || "").trim(); return PRODUCT_NAMES[k.toLowerCase()] || k; };
+
+const mkRow = (date, provider, user, model, inp, out, cached, requests, tenant) => ({
+  date, provider: (provider || "").trim() || "unknown", tenant: tenantName(tenant),
+  user: (user || "").trim() || "(unattributed)", model: (model || "").trim() || "unknown",
+  input_tokens: Math.round(inp), output_tokens: Math.round(out), cached_tokens: Math.round(cached),
+  requests: Math.round(requests),
+});
+
+const isSeparator = (line) => /^[\s|:-]*$/.test(line);
+
+// Column names in the prompts' tables, claude.ai Analytics downloads and Claude Console usage exports.
+const COLUMNS = {
+  date: ["date", "day", "usage_date_utc", "usage_date"],
+  provider: ["provider"],
+  user: ["user", "email", "user_email", "email_address", "member", "user_name"],
+  api_key: ["api_key", "api_key_name"],
+  model: ["model_id", "model_version", "model"],  // first match wins: model_id beats the display name
+  tenant: ["tenant", "product", "workspace"],
+  input: ["input_tokens", "uncached_input_tokens", "cache_creation_ephemeral_5m_input_tokens",
+    "cache_creation_ephemeral_1h_input_tokens", "cache_creation_input_tokens", "usage_input_tokens_no_cache",
+    "usage_input_tokens_cache_write_5m", "usage_input_tokens_cache_write_1h"],  // all of these are summed
+  cached: ["cached_tokens", "cache_read_input_tokens", "usage_input_tokens_cache_read"],
+  output: ["output_tokens", "usage_output_tokens"],
+  requests: ["requests"],
+  messages: ["messages"],
+};
+const SUMMED = new Set(["input"]);
+const normCol = (c) => c.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+/** Map a header row to {field: [column index...]}, or null if it isn't a usage table header. */
+function readHeader(names) {
+  const norm = names.map(normCol), map = {};
+  for (const [field, aliases] of Object.entries(COLUMNS)) {
+    const idx = SUMMED.has(field)
+      ? aliases.map((a) => norm.indexOf(a)).filter((i) => i >= 0)
+      : [aliases.map((a) => norm.indexOf(a)).find((i) => i >= 0)].filter((i) => i !== undefined);
+    if (idx.length) map[field] = idx;
+  }
+  const keyed = map.date || map.user || map.api_key || map.model;
+  const counted = map.input || map.output || map.cached || map.messages;
+  if (!keyed || !counted) return null;
+  // Exports without a provider column: Console exports have api_key columns, claude.ai ones ephemeral cache columns.
+  map.defaultProvider = map.api_key ? "anthropic api" : norm.some((c) => c.startsWith("cache_creation_ephemeral")) ? "claude enterprise" : "";
+  return map;
+}
+
+const providerFromModel = (m) => /^claude/i.test(m) ? "claude enterprise" : /^(gpt|o\d|codex|chatgpt)/i.test(m) ? "chatgpt enterprise"
+  : /^gemini/i.test(m) ? "gemini" : "";
+
+/**
+ * Same rules as fetch_usage.load_csv, plus markdown tables, the column names of the providers' own CSV
+ * downloads, and three kinds of table (analytics chats can't send a full day x user x product x model
+ * grid in one reply, and claude.ai's downloads come one cut per file):
+ *   daily   - has a date: one row per day and whatever of user/product/model the table has
+ *   totals  - has a user, no date: each user's total for the period
+ *   mix     - has a model, no date or user: the period's totals per product and model
+ * Lines starting with # are the chat's notes and are ignored.
+ */
+function parseUsage(text, fallbackProvider) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/)
+    .filter((l) => l.trim() && !l.trim().startsWith("```") && !l.trim().startsWith("#"));
+  const [tpmIn, tpmOut] = WEB.tokens_per_message;
+  const rows = [], userTotals = [], modelMix = [];
+  let map = null, kind = null, grain = 0, table = "", tables = 0, cells = csvCells, estimated = 0;
+  for (const line of lines) {
+    const split = !line.includes(",") && line.includes("|") ? pipeCells : csvCells;
+    const cand = split(line);
+    const header = !/^\d{4}/.test(cand[0] || "") && readHeader(cand);
+    if (header) {
+      map = header; cells = split;
+      const hasUser = !!(map.user || map.api_key);
+      kind = map.date ? "daily" : hasUser ? "totals" : "mix";
+      grain = (map.tenant ? 1 : 0) + (map.model ? 2 : 0) + (hasUser ? 4 : 0);
+      table = `${fallbackProvider}#${++tables}`;
+      continue;
+    }
+    if (!map || isSeparator(line)) continue;
+    const v = cand;
+    const get = (f) => (map[f] ? (v[map[f][0]] ?? "").trim() : "");
+    const sum = (f) => (map[f] || []).reduce((s, i) => s + num(v[i]), 0);
+    const model = get("model");
+    const user = get("user") || (get("api_key") ? `key:${get("api_key")}` : "");
+    const provider = get("provider") || map.defaultProvider || providerFromModel(model) || fallbackProvider;
+    let inp = sum("input"), out = sum("output");
+    const msgs = sum("messages");
+    if (!inp && !out && msgs) { inp = msgs * tpmIn; out = msgs * tpmOut; estimated++; }
+    const t = { input_tokens: inp, output_tokens: out, cached_tokens: sum("cached"), requests: sum("requests") || msgs };
+    if (kind === "daily") {
+      const date = get("date");
+      if (!/^\d{4}/.test(date)) continue;  // prose, "part 2", repeated headers
+      const r = mkRow(date.slice(0, 10).replace(/\//g, "-"), provider, user, model,
+        t.input_tokens, t.output_tokens, t.cached_tokens, t.requests, get("tenant"));
+      r._grain = grain; r._table = table;
+      rows.push(r);
+    } else if (kind === "totals") {
+      if (!user || /^(user|total|email)$/i.test(user)) continue;
+      userTotals.push({ provider, user, ...t });
+    } else {
+      if (!model || /^(model|total)$/i.test(model)) continue;
+      modelMix.push({ provider, tenant: tenantName(get("tenant")), model, ...t });
+    }
+  }
+  if (!map) throw new Error("Couldn't find a header row with a date, user or model column and token counts.");
+  if (!rows.length && !userTotals.length && !modelMix.length)
+    throw new Error("Found the header but no data rows. Dates must look like 2026-09-01.");
+  return { rows, userTotals, modelMix, estimated };
+}
+
+/**
+ * claude.ai's downloads cut the same usage several ways (daily by product, daily by model, weekly by
+ * product x model). Keep one table per provider so nothing is counted twice: the one with the most
+ * days (sizing needs real daily peaks), then the most detail. Every other table that has models feeds
+ * the model mix used to split the kept rows by model.
+ */
+function pickDaily(rows, modelMix) {
+  const notes = [], keep = [], mix = [...modelMix];
+  const bits = (g) => (g & 1) + ((g >> 1) & 1) + ((g >> 2) & 1);
+  for (const prov of [...new Set(rows.map((r) => r.provider))]) {
+    const tables = new Map();
+    for (const r of rows.filter((x) => x.provider === prov)) {
+      const id = r._table ?? "app";
+      if (!tables.has(id)) tables.set(id, { rows: [], dates: new Set(), grain: r._grain ?? 7 });
+      tables.get(id).rows.push(r); tables.get(id).dates.add(r.date);
+    }
+    const ranked = [...tables.values()].sort((a, b) => b.dates.size - a.dates.size || bits(b.grain) - bits(a.grain));
+    const best = ranked[0];
+    keep.push(...best.rows);
+    if (ranked.length === 1) continue;
+    if (!(best.grain & 2)) {
+      for (const t of ranked.slice(1).filter((t) => t.grain & 2)) {
+        for (const r of t.rows) mix.push({ provider: prov, tenant: t.grain & 1 ? r.tenant : "", model: r.model,
+          input_tokens: r.input_tokens, output_tokens: r.output_tokens, cached_tokens: r.cached_tokens, requests: r.requests });
+      }
+    }
+    notes.push(`${prov}: ${ranked.length} tables cover the same usage. Used the one with ${best.dates.size} days for the totals` +
+      (best.grain & 2 ? "" : " and the others for the model mix") + ", so nothing is counted twice.");
+  }
+  return { rows: keep.map(({ _grain, _table, ...r }) => r), modelMix: mix, notes };
+}
+
+const tokOf = (r) => r.input_tokens + r.output_tokens + r.cached_tokens;
+const FIELDS = ["input_tokens", "output_tokens", "cached_tokens", "requests"];
+
+/** Split each row by weights [[value, share]], setting `field` to value. Shares sum to <= 1. */
+function splitRow(r, field, shares) {
+  const out = [];
+  for (const [value, f] of shares) {
+    const piece = { ...r, [field]: value };
+    for (const k of FIELDS) piece[k] = Math.round(r[k] * f);
+    if (tokOf(piece) || piece.requests) out.push(piece);
+  }
+  return out;
+}
+
+/**
+ * Rebuild per-user, per-model daily rows from the one-paste tables. Daily rows with no model are split
+ * by that product's model mix; daily rows with no user are split by each user's share of the period's
+ * tokens. Daily totals per product stay exact (they're all the on-prem sizing needs), and so do each
+ * user's total and each product/model total; the finer splits are estimates, and the notes say so.
+ */
+function allocate(rows, userTotals, modelMix) {
+  const notes = [];
+  let out = rows;
+  for (const prov of [...new Set([...userTotals, ...modelMix].map((x) => x.provider))]) {
+    const said = [];
+    const mix = modelMix.filter((m) => m.provider === prov);
+    const noModel = out.filter((r) => r.provider === prov && r.model === "unknown");
+    if (mix.length && noModel.length) {
+      const weights = (list) => {
+        const by = new Map();
+        for (const m of list) by.set(m.model, (by.get(m.model) || 0) + tokOf(m));
+        const sum = [...by.values()].reduce((a, b) => a + b, 0);
+        return sum ? [...by].map(([model, t]) => [model, t / sum]) : null;
+      };
+      const all = weights(mix);
+      const split = noModel.flatMap((r) => {
+        const w = weights(mix.filter((m) => m.tenant === r.tenant)) || all;
+        return w ? splitRow(r, "model", w) : [r];
+      });
+      out = out.filter((r) => !noModel.includes(r)).concat(split);
+      said.push("models within each product per day");
+    }
+    const users = userTotals.filter((u) => u.provider === prov);
+    let pool = out.filter((r) => r.provider === prov && r.user === "(unattributed)");
+    const pools = [...new Set(out.filter((r) => r.user === "(unattributed)").map((r) => r.provider))];
+    if (users.length && !pool.length && pools.length === 1) {  // a totals file whose provider couldn't be told apart
+      pool = out.filter((r) => r.provider === pools[0] && r.user === "(unattributed)");
+    }
+    if (users.length && !pool.length && !out.some((r) => r.provider === prov)) {
+      notes.push(`${prov}: per-user totals came without a daily table, so they weren't used.`);
+    } else if (users.length && pool.length) {
+      const daily = pool.reduce((s, r) => s + tokOf(r), 0), seats = users.reduce((s, u) => s + tokOf(u), 0);
+      const denom = Math.max(daily, seats) || 1;
+      const shares = users.map((u) => [u.user, tokOf(u) / denom]);
+      const rest = 1 - shares.reduce((s, [, f]) => s + f, 0);
+      if (rest > 0.001) shares.push(["(not tied to a seat)", rest]);  // below that it's rounding
+      out = out.filter((r) => !pool.includes(r)).concat(pool.flatMap((r) => splitRow(r, "user", shares)));
+      said.push("each user's usage per day, product and model (from their share of the total)" +
+        (rest > 0.005 ? `; ${Math.round(rest * 100)}% of usage isn't tied to a seat (API keys, automation)` : ""));
+    }
+    if (said.length) notes.push(`${prov}: daily totals per product and each user's total are exact. Estimated: ${said.join("; ")}.`);
+  }
+  return { rows: out, notes };
+}
+
+// ---------------------------------------------------------- pricing and payload (mirrors catalog.py / generate())
+
+function priceFor(model) {
+  const m = (model || "").toLowerCase();
+  for (const [key, inp, cached, out] of WEB.prices) if (m.includes(key)) return [[inp, cached, out], true];
+  return [WEB.fallback, false];
+}
+
+function buildPayload(rows, demo, notes = []) {
+  const merged = new Map();
+  for (const r of rows) {
+    const k = [r.date, r.provider, r.tenant, r.user, r.model].join("\u0000");
+    const m = merged.get(k);
+    if (!m) merged.set(k, { ...r });
+    else for (const f of ["input_tokens", "output_tokens", "cached_tokens", "requests"]) m[f] += r[f];
+  }
+  const out = [...merged.values()].sort((a, b) =>
+    a.date.localeCompare(b.date) || a.provider.localeCompare(b.provider) || a.user.localeCompare(b.user));
+  const unpriced = new Set();
+  for (const r of out) {
+    const [[inp, cached, o], known] = priceFor(r.model);
+    r.cost_usd = Math.round((r.input_tokens * inp + r.cached_tokens * cached + r.output_tokens * o) / 1e6 * 1e4) / 1e4;
+    if (!known) unpriced.add(r.model);
+  }
+  const dates = out.map((r) => r.date);
+  return {
+    generated_at: new Date().toISOString().slice(0, 19) + "Z",
+    start: dates.reduce((a, b) => (b < a ? b : a)), end: dates.reduce((a, b) => (b > a ? b : a)),
+    demo: !!demo, rows: out, unpriced_models: [...unpriced].sort(), catalog: WEB.catalog, notes,
+  };
+}
+
+// ---------------------------------------------------------- sample data (same shape as fetch_usage.demo_rows)
+
+function demoRows() {
+  let seed = 7;
+  const rnd = () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const uniform = (a, b) => a + (b - a) * rnd();
+  const lognorm = (sd) => Math.exp(sd * Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()));
+  const first = ["avery", "blake", "casey", "devon", "emery", "finley", "harper", "jordan", "kai", "logan",
+    "morgan", "quinn", "riley", "sage", "taylor", "rowan", "skyler", "reese", "parker", "dakota"];
+  const last = ["ng", "patel", "garcia", "kim", "okafor", "silva", "cohen", "berg", "rossi", "haas"];
+  const teams = [["engineering", 40, 1.6], ["research", 16, 2.2], ["analytics", 14, 0.7], ["operations", 10, 0.35]];
+  const people = [], taken = new Set();
+  for (const [team, n, intensity] of teams) {
+    for (let i = 0; i < n; i++) {
+      let name = `${pick(first)}.${pick(last)}`;
+      while (taken.has(name)) name = `${pick(first)}.${pick(last)}${2 + Math.floor(rnd() * 8)}`;
+      taken.add(name);
+      people.push([name, team, intensity * lognorm(0.9)]);
+    }
+  }
+  const models = { anthropic: ["claude-opus-5", "claude-sonnet-5", "claude-sonnet-5", "claude-haiku-4-5"],
+    openai: ["gpt-5.5", "gpt-5", "gpt-5-mini"], google: ["gemini-3-pro", "gemini-3-flash"] };
+  const today = new Date(); const end = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const rows = [];
+  for (let t = end - 29 * 864e5; t <= end; t += 864e5) {
+    const d = new Date(t), weekday = d.getUTCDay() % 6 !== 0, day = d.toISOString().slice(0, 10);
+    for (const [name, team, weight] of people) {
+      for (const [prov, ms] of Object.entries(models)) {
+        if (rnd() < (prov === "google" ? 0.35 : 0.75)) {
+          const m = pick(ms), base = weight * (weekday ? 1 : 0.2) * uniform(0.3, 1.7) * 3e6;
+          rows.push(mkRow(day, prov, `${name}@example.com`, m, base, base * uniform(0.06, 0.2),
+            base * uniform(1, 6), Math.floor(base / 9000) + 1, team));
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------- Grafana JSON (port of grafana.build_dashboard)
+
+function buildGrafana(payload) {
+  const PLUGIN = "yesoreyeram-infinity-datasource", DS = { type: PLUGIN, uid: "${DS_INFINITY}" };
+  const TOP = 25, HEAT = 15, LEGEND = { displayMode: "list", placement: "bottom", showLegend: true };
+  const BARS = { drawStyle: "bars", fillOpacity: 85, lineWidth: 1, barAlignment: 0,
+    stacking: { mode: "normal", group: "A" }, showPoints: "never" };
+  const cell = (v) => { const s = String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = (head, rows) => [head, ...rows].map((r) => r.map(cell).join(",")).join("\n") + "\n";
+  const ms = (day) => Date.parse(`${day}T00:00:00Z`);
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const target = (data, columns, format = "table") => ({
+    refId: "A", datasource: DS, type: "csv", source: "inline", parser: "backend", format, data,
+    root_selector: "", filters: [], columns: columns.map(([c, t]) => ({ selector: c, text: c, type: t })) });
+  const panel = (type, title, [x, y, w, h], tgt, o = {}) => {
+    const defaults = { unit: o.unit || "short", custom: o.custom || {} };
+    if (o.color) defaults.color = o.color;
+    return { type, title, description: o.desc || "", datasource: DS, gridPos: { x, y, w, h }, targets: [tgt],
+      fieldConfig: { defaults, overrides: o.overrides || [] }, options: o.options || {} };
+  };
+  const stat = (title, x, value, unit, desc) => panel("stat", title, [x, 0, 6, 4],
+    target(csv(["value"], [[r2(value)]]), [["value", "number"]]), { desc, unit, options: {
+      reduceOptions: { calcs: ["lastNotNull"], fields: "", values: false }, colorMode: "none", graphMode: "none", textMode: "value" } });
+
+  const rows = payload.rows, tok = (r) => r.input_tokens + r.output_tokens + r.cached_tokens;
+  const providers = [...new Set(rows.map((r) => r.provider))].sort();
+  const dates = [...new Set(rows.map((r) => r.date))].sort();
+  const get = (m, k, init) => { if (!m.has(k)) m.set(k, init()); return m.get(k); };
+  const dailyTok = new Map(), dailyCost = new Map(), users = new Map(), tenants = new Map(), models = new Map();
+  const userDay = new Map(), table = new Map();
+  for (const r of rows) {
+    const t = tok(r), c = r.cost_usd || 0, ten = r.tenant || "(none)";
+    const dt = get(dailyTok, r.date, () => ({})), dc = get(dailyCost, r.date, () => ({}));
+    dt[r.provider] = (dt[r.provider] || 0) + t;
+    dc[r.provider] = (dc[r.provider] || 0) + c;
+    const u = get(users, r.user, () => [0, 0, 0, 0]);
+    u[0] += r.input_tokens; u[1] += r.output_tokens; u[2] += r.cached_tokens; u[3] += c;
+    const tn = get(tenants, ten, () => [0, 0]); tn[0] += t; tn[1] += c;
+    models.set(`${r.provider} / ${r.model}`, (models.get(`${r.provider} / ${r.model}`) || 0) + t);
+    const ud = get(userDay, r.user, () => ({})); ud[r.date] = (ud[r.date] || 0) + t;
+    const a = get(table, JSON.stringify([r.user, r.tenant, r.provider, r.model]), () => [0, 0, 0, 0, 0]);
+    a[0] += r.input_tokens; a[1] += r.output_tokens; a[2] += r.cached_tokens; a[3] += r.requests; a[4] += c;
+  }
+  const totalTokens = rows.reduce((s, r) => s + tok(r), 0), totalCost = rows.reduce((s, r) => s + (r.cost_usd || 0), 0);
+  const ndays = Math.max(1, (Date.parse(payload.end) - Date.parse(payload.start)) / 864e5 + 1);
+  const ranked = [...users.keys()].sort((a, b) => {
+    const ua = users.get(a), ub = users.get(b); return (ub[0] + ub[1] + ub[2]) - (ua[0] + ua[1] + ua[2]); });
+  const tcols = [["time", "timestamp_epoch"], ...providers.map((p) => [p, "number"])];
+  const multi = { legend: LEGEND, tooltip: { mode: "multi", sort: "desc" } };
+  const top = ranked.slice(0, TOP), heat = ranked.slice(0, HEAT);
+  const bySpend = [...users.keys()].sort((a, b) => users.get(b)[3] - users.get(a)[3]).slice(0, TOP);
+  const trows = [...table].map(([k, v]) => [...JSON.parse(k), ...v.slice(0, 4), r2(v[4])]).sort((a, b) => b[8] - a[8]);
+
+  const panels = [
+    stat("Total tokens", 0, totalTokens, "short", "Input + output + cache reads, whole period"),
+    stat("Active users", 6, users.size, "none", "Distinct users with any usage"),
+    stat("API spend (period)", 12, totalCost, "currencyUSD", "Estimated at list price"),
+    stat("API spend / month", 18, totalCost / ndays * 30.44, "currencyUSD", "Run-rate from this period"),
+    panel("timeseries", "Daily tokens by provider", [0, 4, 12, 9], target(
+      csv(["time", ...providers], dates.map((d) => [ms(d), ...providers.map((p) => dailyTok.get(d)[p] || 0)])),
+      tcols, "timeseries"), { custom: BARS, options: multi }),
+    panel("timeseries", "Daily API spend by provider", [12, 4, 12, 9], target(
+      csv(["time", ...providers], dates.map((d) => [ms(d), ...providers.map((p) => r2(dailyCost.get(d)[p] || 0))])),
+      tcols, "timeseries"), { unit: "currencyUSD", custom: BARS, options: multi }),
+    panel("barchart", `Tokens per user (top ${TOP})`, [0, 13, 12, 14], target(
+      csv(["user", "input", "output", "cache reads"], top.map((u) => [u, ...users.get(u).slice(0, 3)])),
+      [["user", "string"], ["input", "number"], ["output", "number"], ["cache reads", "number"]]),
+      { custom: { fillOpacity: 85, lineWidth: 0 }, options: { orientation: "horizontal", stacking: "normal", xField: "user",
+        showValue: "never", barWidth: 0.8, groupWidth: 0.7, legend: LEGEND, tooltip: { mode: "multi" } } }),
+    panel("barchart", `API spend per user (top ${TOP})`, [12, 13, 12, 14], target(
+      csv(["user", "spend"], bySpend.map((u) => [u, r2(users.get(u)[3])])), [["user", "string"], ["spend", "number"]]),
+      { unit: "currencyUSD", custom: { fillOpacity: 85, lineWidth: 0 }, options: { orientation: "horizontal", xField: "user",
+        showValue: "auto", barWidth: 0.8, legend: { ...LEGEND, showLegend: false }, tooltip: { mode: "single" } } }),
+    panel("status-history", `Usage map: daily tokens per user (top ${HEAT})`, [0, 27, 24, 12], target(
+      csv(["time", ...heat], dates.map((d) => [ms(d), ...heat.map((u) => userDay.get(u)[d] || 0)])),
+      [["time", "timestamp_epoch"], ...heat.map((u) => [u, "number"])], "timeseries"),
+      { desc: "Darker = more tokens that day", color: { mode: "continuous-blues" }, custom: { fillOpacity: 90, lineWidth: 1 },
+        options: { showValue: "never", rowHeight: 0.85, colWidth: 0.95, legend: { ...LEGEND, showLegend: false }, tooltip: { mode: "single" } } }),
+    panel("piechart", "Tokens by model", [0, 39, 8, 11], target(
+      csv(["model", "tokens"], [...models].sort((a, b) => b[1] - a[1])), [["model", "string"], ["tokens", "number"]]),
+      { options: { pieType: "donut", displayLabels: ["percent"], reduceOptions: { values: true, calcs: ["lastNotNull"], fields: "" },
+        legend: { displayMode: "table", placement: "right", values: ["value", "percent"], showLegend: true } } }),
+    panel("barchart", "Tokens and spend by tenant / workspace", [8, 39, 16, 11], target(
+      csv(["tenant", "tokens"], [...tenants].map(([k, v]) => [k, v[0]]).sort((a, b) => b[1] - a[1])),
+      [["tenant", "string"], ["tokens", "number"]]),
+      { custom: { fillOpacity: 85, lineWidth: 0 }, options: { orientation: "horizontal", xField: "tenant", showValue: "auto",
+        barWidth: 0.7, legend: { ...LEGEND, showLegend: false }, tooltip: { mode: "single" } } }),
+    panel("table", "User × model breakdown", [0, 50, 24, 14], target(
+      csv(["user", "tenant", "provider", "model", "input", "output", "cache reads", "requests", "spend"], trows),
+      [["user", "string"], ["tenant", "string"], ["provider", "string"], ["model", "string"], ["input", "number"],
+        ["output", "number"], ["cache reads", "number"], ["requests", "number"], ["spend", "number"]]),
+      { options: { showHeader: true, sortBy: [{ displayName: "spend", desc: true }] },
+        overrides: [{ matcher: { id: "byName", options: "spend" }, properties: [{ id: "unit", value: "currencyUSD" }] }] }),
+  ];
+  panels.forEach((p, i) => { p.id = i + 1; });
+  const endExcl = new Date(Date.parse(payload.end) + 864e5).toISOString().slice(0, 10);
+  return {
+    __inputs: [{ name: "DS_INFINITY", label: "Infinity", description: "Infinity data source",
+      type: "datasource", pluginId: PLUGIN, pluginName: "Infinity" }],
+    __requires: [{ type: "datasource", id: PLUGIN, name: "Infinity", version: "2.0.0" }],
+    uid: "frontier-usage", title: "Frontier model usage" + (payload.demo ? " (sample data)" : ""),
+    description: `Generated by Frontier Usage at ${payload.generated_at}`,
+    tags: ["frontier-usage", "ai"], timezone: "utc", editable: true, schemaVersion: 39,
+    version: 1, refresh: "", graphTooltip: 1,
+    time: { from: `${payload.start}T00:00:00.000Z`, to: `${endExcl}T00:00:00.000Z` },
+    panels,
+  };
+}
+
+// ---------------------------------------------------------- UI
+
+function setReportTabs(enabled) {
+  document.querySelectorAll(".tabs button").forEach((b) => { if (b.dataset.tab !== "data") b.disabled = !enabled; });
+}
+
+function renderPrompt() {
+  const p = WEB.prompts[intake.prompt];
+  $("in-pick").innerHTML = WEB.prompts.map((q, i) =>
+    `<button type="button" role="radio" aria-checked="${i === intake.prompt}" data-i="${i}">${esc(q.name)}</button>`).join("");
+  $("in-where").textContent = `Paste into: ${p.where}`;
+  $("in-prompt").textContent = p.text;
+  $("in-copied").textContent = "";
+}
+
+function renderSources() {
+  const s = intake.sources;
+  $("in-sources").innerHTML = s.map((src, i) => {
+    const totals = src.userTotals || [];
+    const users = new Set([...src.rows.map((r) => r.user), ...totals.map((u) => u.user)].filter((u) => u !== "(unattributed)")).size;
+    const provs = [...new Set([...src.rows, ...totals, ...(src.modelMix || [])].map((r) => r.provider))].join(", ");
+    const dates = src.rows.map((r) => r.date).sort();
+    const mixN = (src.modelMix || []).length;
+    const parts = [src.rows.length ? `${src.rows.length.toLocaleString()} daily rows, ${dates[0]} → ${dates[dates.length - 1]}` : "no daily rows",
+      ...(mixN ? [`model mix (${mixN} product/model pairs)`] : []),
+      totals.length ? `per-user totals for ${totals.length.toLocaleString()} ${totals.length === 1 ? "user" : "users"}`
+        : `${users.toLocaleString()} ${users === 1 ? "user" : "users"}`, esc(provs)];
+    const est = src.estimated
+      ? `<span class="notes warn">${src.estimated.toLocaleString()} rows had messages but no tokens; tokens are estimated at
+         ${WEB.tokens_per_message[0].toLocaleString()} in / ${WEB.tokens_per_message[1].toLocaleString()} out per message.</span>` : "";
+    return `<div class="in-src"><div><b>${esc(src.name)}</b>
+      <span class="notes">${parts.join(" · ")}</span>${est}</div>
+      <button type="button" data-i="${i}" aria-label="Remove ${esc(src.name)}" title="Remove">×</button></div>`;
+  }).join("");
+  $("in-build").disabled = !s.length;
+}
+
+function addSource(name, text) {
+  try {
+    let parsed;
+    if (/^\s*[{[]/.test(text)) {  // a usage.json from the desktop app
+      const j = JSON.parse(text);
+      parsed = { rows: (Array.isArray(j) ? j : j.rows || []).map((r) => mkRow(r.date, r.provider, r.user, r.model,
+        num(r.input_tokens), num(r.output_tokens), num(r.cached_tokens), num(r.requests), r.tenant)), userTotals: [], modelMix: [], estimated: 0 };
+    } else parsed = parseUsage(text, name.replace(/\.[^.]+$/, ""));
+    intake.sources = intake.sources.filter((s) => !s.demo);
+    intake.sources.push({ name, ...parsed });
+    $("in-msg").textContent = "";
+    renderSources();
+    return true;
+  } catch (e) {
+    $("in-msg").textContent = `${name}: ${e.message}`;
+    return false;
+  }
+}
+
+/** Chats split long answers into parts and sometimes resend one; a repeated row replaces, never adds. */
+function dedupe(items, key) {
+  const m = new Map();
+  for (const it of items) m.set(key(it), it);
+  return { items: [...m.values()], dropped: items.length - m.size };
+}
+
+function buildReport() {
+  const demo = intake.sources.length > 0 && intake.sources.every((s) => s.demo);
+  const daily = dedupe(intake.sources.flatMap((s) => s.rows), (r) => [r.date, r.provider, r.tenant, r.user, r.model].join("\u0000"));
+  const totals = dedupe(intake.sources.flatMap((s) => s.userTotals || []), (u) => u.provider + "\u0000" + u.user);
+  const mix = dedupe(intake.sources.flatMap((s) => s.modelMix || []), (m) => [m.provider, m.tenant, m.model].join("\u0000"));
+  const picked = pickDaily(daily.items, mix.items);
+  const { rows, notes } = allocate(picked.rows, totals.items, picked.modelMix);
+  notes.unshift(...picked.notes);
+  if (daily.dropped + totals.dropped + mix.dropped)
+    notes.push(`${(daily.dropped + totals.dropped + mix.dropped).toLocaleString()} rows appeared more than once in the pasted data and were counted once.`);
+  if (!rows.length) { $("in-msg").textContent = notes.join(" ") || "No daily rows to build from."; showTab("data"); return; }
+  const payload = buildPayload(rows, demo, notes);
+  GRAFANA = buildGrafana(payload);
+  setReportTabs(true);
+  history.replaceState(null, "", "#usage");
+  load(payload);
+}
+
+async function addFiles(files) {
+  for (const f of files) addSource(f.name, await f.text());
+}
+
+function intakeStart() {
+  $("loader").style.display = "none";
+  setReportTabs(false);
+  $("sub").textContent = "Paste the usage from the customer's analytics chat, then build the report.";
+  renderPrompt();
+  renderSources();
+  renderGrafana();
+  showTab("data");
+}
+
+$("in-pick").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  intake.prompt = +b.dataset.i; renderPrompt();
+});
+$("in-copy").addEventListener("click", async () => {
+  const text = WEB.prompts[intake.prompt].text;
+  try { await navigator.clipboard.writeText(text); }
+  catch {  // file:// pages in some browsers have no clipboard API
+    const r = document.createRange(); r.selectNodeContents($("in-prompt"));
+    getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy");
+  }
+  $("in-copied").textContent = "Copied.";
+});
+$("in-add").addEventListener("click", () => {
+  const text = $("in-paste").value;
+  if (!text.trim()) { $("in-msg").textContent = "Paste the chat's answer into the box first."; return; }
+  if (addSource(`Pasted data ${++intake.pasted}`, text)) $("in-paste").value = "";
+});
+$("in-files").addEventListener("change", async (e) => { await addFiles([...e.target.files]); e.target.value = ""; });
+$("in-sources").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  intake.sources.splice(+b.dataset.i, 1); renderSources();
+});
+$("in-build").addEventListener("click", buildReport);
+$("in-demo").addEventListener("click", () => {
+  intake.sources = [{ name: "Sample data", rows: demoRows(), userTotals: [], modelMix: [], estimated: 0, demo: true }];
+  $("in-msg").textContent = "";
+  renderSources();
+  buildReport();
+});
+const drop = $("in-drop");
+["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("dragging"); }));
+["dragleave", "drop"].forEach((t) => drop.addEventListener(t, () => drop.classList.remove("dragging")));
+drop.addEventListener("drop", (e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]); });
+
+if (EMBEDDED) load(EMBEDDED);
+else if (typeof intakeStart === "function") intakeStart();
+else { $("loader").style.display = "flex"; $("sub").textContent = "No embedded data — load a usage.json produced by fetch_usage.py"; renderGrafana(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frontier usage &amp; on-prem sizing</title>
+<!--__HEAD__-->
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --border: rgba(11,11,11,0.10);
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --other: #b5b4ad; --field: #ffffff;
+  --s1: #2f4ab0; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #0e8fa8; --s8: #e34948;
+  /* CTG Federal navy (from the logo) for buttons, tabs and headings; --s1 is its chart-weight step */
+  --brand: #1b2556; --brand-ink: #ffffff; --brand-accent: #1b2556;
+  --good: #1f8a4c; --warn: #b7791f; --bad: #c2402f;
+  --api: var(--s1); --onprem: var(--s3);
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --other: #5c5b57; --field: #121211;
+    --s1: #6f86e8; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #13a3a8; --s8: #e66767;
+    --brand: #2f4ab0; --brand-ink: #ffffff; --brand-accent: #8fa0ee;
+    --good: #3fb871; --warn: #e0a43a; --bad: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root {
+  min-height: 100vh; background: var(--page); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px;
+}
+header { position: relative; margin-bottom: 14px; padding-right: 200px; }
+header .logo { position: absolute; top: 0; right: 0; width: 170px; }
+header .logo.dark { display: none; }
+@media (prefers-color-scheme: dark) { header .logo.light { display: none; } header .logo.dark { display: block; } }
+@media (max-width: 700px) { header { padding-right: 0; } header .logo { position: static; display: block; margin-bottom: 8px; } }
+h1 { font-size: 20px; margin: 0 0 4px; color: var(--brand-accent); }
+.viz-root::before { content: ""; display: block; height: 4px; background: var(--brand); margin: -24px -24px 20px; }
+.sub { color: var(--text-secondary); margin: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tabs button {
+  font: inherit; font-weight: 500; color: var(--text-secondary); background: none; border: 0;
+  border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--brand-accent); border-bottom-color: var(--brand-accent); }
+.tabs button:hover { color: var(--text-primary); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: end; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+select, input[type=search] {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 150px;
+}
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.tile .label { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.tile .value { font-size: 28px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .note { font-size: 12px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+.card h2 { font-size: 15px; margin: 0 0 2px; }
+.card .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i, .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .lbl { fill: var(--text-secondary); }
+svg .val { fill: var(--text-primary); font-weight: 600; }
+.tip {
+  position: fixed; pointer-events: none; z-index: 10; display: none; min-width: 180px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.tip b { display: block; margin-bottom: 4px; }
+.tip .r { display: flex; justify-content: space-between; gap: 16px; color: var(--text-secondary); }
+.tip .r span:last-child { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { color: var(--text-secondary); font-weight: 500; position: sticky; top: 0; background: var(--surface-1); }
+#table th { cursor: pointer; user-select: none; }
+.tablewrap { max-height: 480px; overflow: auto; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+.banner { background: var(--surface-1); border: 1px dashed var(--axis); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; color: var(--text-secondary); font-size: 12px; }
+
+/* on-prem sizing */
+.verdict { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 12px; }
+.verdict .subv { display: block; font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-top: 6px; }
+.sz-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .sz-grid { grid-template-columns: 1fr; } }
+.sz-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sz-main .grid2 { margin: 0; }
+.inputs h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin: 14px 0 6px; font-weight: 600; }
+.inputs h3:first-child { margin-top: 0; }
+.field { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; }
+.field label { font-size: 13px; color: var(--text-secondary); }
+.field label small { display: block; font-size: 11px; color: var(--muted); }
+.field input, .field select, .hw input {
+  font: inherit; font-size: 13px; color: var(--text-primary); background: var(--field); text-align: right;
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; width: 96px; font-variant-numeric: tabular-nums;
+}
+.field select { width: 100%; text-align: left; min-width: 0; }
+.inputs details { margin-top: 14px; }
+.inputs summary { cursor: pointer; font-size: 13px; font-weight: 500; }
+.hw { width: 100%; font-size: 12px; margin-top: 8px; }
+.hw td, .hw th { padding: 3px 2px; text-align: right; }
+.hw th:first-child, .hw td:first-child { text-align: left; }
+.hw input { width: 100%; min-width: 58px; padding: 3px 4px; font-size: 12px; }
+.linkbtn { font: inherit; font-size: 12px; background: none; border: 0; color: var(--s1); cursor: pointer; padding: 6px 0 0; }
+#sz-cmp tbody tr { cursor: pointer; }
+#sz-cmp tbody tr:hover td { background: var(--page); }
+#sz-cmp tr.sel td { background: color-mix(in srgb, var(--onprem) 12%, transparent); }
+#sz-cmp td small, .vend { display: block; font-size: 11px; color: var(--muted); }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; border: 1px solid currentColor; border-radius: 99px; padding: 0 7px; margin-left: 6px; vertical-align: 1px; }
+.rows > div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+.rows > div span:first-child { color: var(--text-secondary); }
+.rows > div span:last-child { font-variant-numeric: tabular-nums; }
+.rows > div.tot { font-weight: 600; border-bottom: 0; }
+.rows > div.tot span:first-child { color: var(--text-primary); }
+.bar { height: 10px; border-radius: 5px; background: var(--grid); overflow: hidden; margin: 10px 0 6px; }
+.bar div { height: 100%; border-radius: 5px; }
+.status { font-weight: 600; font-size: 13px; }
+.notes { font-size: 12px; color: var(--muted); margin: 0; }
+.notes li { margin: 2px 0; }
+.btn {
+  font: inherit; font-size: 13px; font-weight: 500; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--axis); }
+.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.btn.primary:hover { filter: brightness(1.15); }
+.btn.primary:disabled { opacity: 0.45; filter: none; cursor: default; }
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+ol.steps { padding-left: 20px; margin: 8px 0; }
+ol.steps li { margin: 6px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+.print-only { display: none; }
+@media print {
+  .viz-root, .viz-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .viz-root { padding: 0; background: #fff; }
+  .viz-root::before { margin: 0 0 12px; }
+  @page { size: letter; margin: 0.45in; }
+  .tabs, .filters, .noprint, .tip, #sz-inputs { display: none !important; }
+  .sz-grid { display: block; }
+  .card { break-inside: avoid; border-color: #cfd5dc; }
+  .print-only { display: block; }
+}
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <img class="logo light" alt="CTG Federal" src="__LOGO_LIGHT__">
+    <img class="logo dark" alt="CTG Federal" src="__LOGO_DARK__">
+    <h1>Frontier model usage &amp; on-prem sizing</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+<!--__DATA_TAB_BUTTON__-->
+    <button role="tab" data-tab="usage" aria-selected="true">Usage</button>
+    <button role="tab" data-tab="sizing" aria-selected="false">On-prem sizing</button>
+    <button role="tab" data-tab="grafana" aria-selected="false">Grafana</button>
+  </nav>
+  <div id="banner"></div>
+
+  <div class="filters" id="filters">
+    <label>Provider <select id="f-provider"></select></label>
+    <label>Tenant / workspace <select id="f-tenant"></select></label>
+    <label>Date range <select id="f-range">
+      <option value="7">Last 7 days</option><option value="14">Last 14 days</option>
+      <option value="30" selected>Last 30 days</option><option value="0">All loaded</option>
+    </select></label>
+    <label class="usage-only">Metric <select id="f-metric">
+      <option value="total">Total tokens (in + out + cached)</option>
+      <option value="billable">Input + output</option>
+      <option value="input_tokens">Input (uncached)</option>
+      <option value="output_tokens">Output</option>
+      <option value="cached_tokens">Cache reads</option>
+      <option value="cost_usd">API spend ($)</option>
+    </select></label>
+    <label>User search <input type="search" id="f-user" placeholder="email contains…"></label>
+    <label id="loader" style="display:none">Load usage.json <input type="file" id="f-file" accept=".json"></label>
+  </div>
+
+<!--__DATA_TAB__-->
+  <!-- ===================================================== Usage -->
+  <section id="tab-usage" role="tabpanel">
+    <div class="tiles" id="tiles"></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Tokens per user</h2>
+        <p class="hint">Stacked by provider, top 25 users</p>
+        <div class="legend" id="legend-users"></div>
+        <div id="chart-users"></div>
+      </div>
+      <div class="card">
+        <h2>Daily tokens, top users</h2>
+        <p class="hint">Top 7 users across all loaded data; everyone else is "Other"</p>
+        <div class="legend" id="legend-daily"></div>
+        <div id="chart-daily"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>User × model breakdown</h2>
+      <p class="hint">Click a column header to sort. Spend is estimated at list price.</p>
+      <div class="tablewrap"><table id="table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Sizing -->
+  <section id="tab-sizing" role="tabpanel" hidden>
+    <div class="row-actions noprint">
+      <button class="btn" id="sz-print" type="button">Print / Save PDF</button>
+    </div>
+    <div class="card verdict" id="sz-verdict"></div>
+    <div class="tiles" id="sz-tiles"></div>
+    <div class="sz-grid">
+      <aside class="card inputs" id="sz-inputs" aria-label="Sizing assumptions">
+        <h3>Horizon</h3>
+        <div class="field"><label for="sz-years">Years to model</label><input id="sz-years" type="number" min="1" max="8" step="1"></div>
+        <div class="field"><label for="sz-growth">Usage growth / yr<small>% more tokens each year</small></label><input id="sz-growth" type="number" step="5"></div>
+        <h3>Frontier API</h3>
+        <div class="field"><label for="sz-price_adj">Price vs list, %<small>negative = negotiated discount</small></label><input id="sz-price_adj" type="number" step="5"></div>
+        <div class="field"><label for="sz-seat">Seat fee $ / user / mo<small>enterprise plan, on top of tokens</small></label><input id="sz-seat" type="number" step="5" min="0"></div>
+        <h3>Workload shape</h3>
+        <div class="field"><label for="sz-onprem_model">Model to serve on-prem</label></div>
+        <div class="field"><select id="sz-onprem_model"></select></div>
+        <div class="field"><label for="sz-hours">Working hours / day<small>when the traffic lands</small></label><input id="sz-hours" type="number" min="1" max="24" step="1"></div>
+        <div class="field"><label for="sz-burst">Peak burst ×<small>busiest minutes vs average</small></label><input id="sz-burst" type="number" min="1" step="0.5"></div>
+        <div class="field"><label for="sz-util">Max utilization at peak %</label><input id="sz-util" type="number" min="10" max="100" step="5"></div>
+        <h3>Operating costs</h3>
+        <div class="field"><label for="sz-rate">Power $ / kWh</label><input id="sz-rate" type="number" step="0.01" min="0"></div>
+        <div class="field"><label for="sz-pue">PUE<small>cooling overhead</small></label><input id="sz-pue" type="number" step="0.05" min="1"></div>
+        <div class="field"><label for="sz-load">Avg draw, % of max<small>24/7 incl. idle</small></label><input id="sz-load" type="number" min="0" max="100" step="5"></div>
+        <div class="field"><label for="sz-ovh_kw">Switch / storage kW per system</label><input id="sz-ovh_kw" type="number" step="0.1" min="0"></div>
+        <div class="field"><label for="sz-sup_yrs">Support included, yrs</label><input id="sz-sup_yrs" type="number" min="0" step="1"></div>
+        <div class="field"><label for="sz-sup_pct">Support renewal<small>% of hardware / yr</small></label><input id="sz-sup_pct" type="number" min="0" step="1"></div>
+        <div class="field"><label for="sz-fte">Ops staff FTE</label><input id="sz-fte" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="sz-fte_cost">Loaded cost / FTE $</label><input id="sz-fte_cost" type="number" min="0" step="10000"></div>
+        <div class="field"><label for="sz-resid">Resale at end<small>% of hardware</small></label><input id="sz-resid" type="number" min="0" max="100" step="5"></div>
+        <details>
+          <summary>Hardware prices &amp; throughput</summary>
+          <p class="notes">Per system. Throughput is output tok/s for a ~1T-param open MoE model; prefill is uncached input tok/s. Untick to leave a system out.</p>
+          <table class="hw" id="sz-hw"></table>
+          <button class="linkbtn" id="sz-reset" type="button">Reset all assumptions</button>
+        </details>
+      </aside>
+
+      <div class="sz-main">
+        <section class="card">
+          <h2>Cluster options for this workload</h2>
+          <p class="hint">Each system type sized to carry the selected usage at peak, with systems added as usage grows. Click a row to chart it.</p>
+          <div class="tablewrap" style="max-height:none"><table id="sz-cmp"></table></div>
+        </section>
+        <section class="card">
+          <h2>Cumulative spend</h2>
+          <p class="hint" id="sz-chart-hint"></p>
+          <div class="legend" id="sz-legend"></div>
+          <div id="sz-chart"></div>
+        </section>
+        <div class="grid2">
+          <section class="card">
+            <h2>Workload measured from usage</h2>
+            <p class="hint" id="sz-profile-hint"></p>
+            <div class="rows" id="sz-profile"></div>
+          </section>
+          <section class="card">
+            <h2 id="sz-cap-title">Can it carry the team?</h2>
+            <p class="hint">Peak demand vs capacity in year 1, after any growth-driven additions.</p>
+            <div id="sz-cap"></div>
+          </section>
+        </div>
+        <div class="grid2">
+          <section class="card">
+            <h2>Where the on-prem money goes</h2>
+            <p class="hint" id="sz-break-hint"></p>
+            <div class="rows" id="sz-break"></div>
+          </section>
+          <section class="card">
+            <h2>Year by year</h2>
+            <p class="hint">Annual spend and running totals.</p>
+            <div class="tablewrap"><table id="sz-years-tbl"></table></div>
+          </section>
+        </div>
+        <section class="card">
+          <h2>How this is worked out</h2>
+          <ul class="notes" id="sz-notes"></ul>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Grafana -->
+  <section id="tab-grafana" role="tabpanel" hidden>
+    <div class="grid2">
+      <div class="card">
+        <h2>Put this report in Grafana</h2>
+        <p class="hint">The dashboard carries its own data, so nothing else needs to be set up besides the free Infinity plugin.</p>
+        <p><b>Easiest:</b> in the Frontier Usage app, fill in your Grafana address and a service-account token under
+          "Grafana" and click <i>Publish to Grafana</i>. It creates or updates this dashboard for you.</p>
+        <p><b>Or import it by hand:</b></p>
+        <ol class="steps">
+          <li><button class="btn primary" id="gf-download" type="button">Download Grafana dashboard JSON</button>
+            <span class="notes app-only">(also saved next to this report as <code>grafana-dashboard.json</code>)</span></li>
+          <li>Make sure the <b>Infinity</b> data source plugin is installed: <i>Administration → Plugins</i>, search "Infinity"
+            (Grafana Cloud has it), or on the server: <code>grafana-cli plugins install yesoreyeram-infinity-datasource</code></li>
+          <li>Add an Infinity data source if you don't have one: <i>Connections → Data sources → Add → Infinity</i>, then Save.</li>
+          <li><i>Dashboards → New → Import</i>, upload the JSON, pick the Infinity data source, and click Import.</li>
+        </ol>
+        <p class="notes">Each report makes a fresh snapshot. Re-importing (or re-publishing) replaces the dashboard with the same name.</p>
+      </div>
+      <div class="card">
+        <h2>What's on the Grafana dashboard</h2>
+        <p class="hint" id="gf-sub"></p>
+        <div class="rows" id="gf-panels"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const EMBEDDED = /*__USAGE_DATA__*/null;
+let GRAFANA = /*__GRAFANA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(v).trim();
+const fmt = (n) => n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(Math.round(n));
+const full = (n) => Math.round(n).toLocaleString();
+const usd = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(2) + "M"; if (a >= 1e4) return s + "$" + Math.round(a / 1e3) + "K"; if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K"; return s + "$" + Math.round(a); };
+const usdFull = (v) => (v < 0 ? "-$" : "$") + Math.round(Math.abs(v)).toLocaleString("en-US");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const SLOTS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"];
+
+let DATA = null, providerColor = {}, userColor = {}, topUsers = [], sortKey = "total", sortDir = -1;
+let activeTab = "usage";
+
+function metricOf(r, m) {
+  if (m === "total") return r.input_tokens + r.output_tokens + r.cached_tokens;
+  if (m === "billable") return r.input_tokens + r.output_tokens;
+  return r[m] || 0;
+}
+const isMoney = () => $("f-metric").value === "cost_usd";
+const fmtM = (v) => isMoney() ? usd(v) : fmt(v);
+const fullM = (v) => isMoney() ? usdFull(v) : full(v);
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+// Colors are bound to entities once, from the full dataset, so filters never repaint survivors.
+function assignColors() {
+  const provTotals = {}, userTotals = {};
+  for (const r of DATA.rows) {
+    const t = metricOf(r, "total");
+    provTotals[r.provider] = (provTotals[r.provider] || 0) + t;
+    userTotals[r.user] = (userTotals[r.user] || 0) + t;
+  }
+  Object.keys(provTotals).sort((a, b) => provTotals[b] - provTotals[a])
+    .forEach((p, i) => providerColor[p] = i < SLOTS.length ? SLOTS[i] : "--other");
+  topUsers = Object.keys(userTotals).sort((a, b) => userTotals[b] - userTotals[a]).slice(0, 7);
+  topUsers.forEach((u, i) => userColor[u] = SLOTS[i]);
+}
+
+function fillSelect(id, values, allLabel) {
+  $(id).innerHTML = `<option value="">${allLabel}</option>` + values.map((v) => `<option>${esc(v)}</option>`).join("");
+}
+
+function dayShift(iso, n) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 864e5);
+
+// Calendar days covered by the current date filter.
+function spanDates() {
+  const total = daysBetween(DATA.start, DATA.end) + 1, days = +$("f-range").value;
+  const n = days ? Math.min(days, total) : total;
+  return Array.from({ length: n }, (_, i) => dayShift(DATA.end, i - n + 1));
+}
+
+function filtered() {
+  const prov = $("f-provider").value, ten = $("f-tenant").value, q = $("f-user").value.toLowerCase();
+  const minDate = spanDates()[0];
+  return DATA.rows.filter((r) => (!prov || r.provider === prov) && (!ten || r.tenant === ten) &&
+    (!q || r.user.toLowerCase().includes(q)) && r.date >= minDate);
+}
+
+function showTip(evt, html) {
+  const t = $("tip");
+  t.innerHTML = html;
+  t.style.display = "block";
+  const w = t.offsetWidth, h = t.offsetHeight;
+  let x = evt.clientX + 14, y = evt.clientY + 14;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = evt.clientY - h - 14;
+  t.style.left = x + "px"; t.style.top = y + "px";
+}
+const hideTip = () => $("tip").style.display = "none";
+const sw = (v) => `<i style="background:${css(v)}"></i>`;
+
+// ===================================================================== Usage tab
+
+function renderTiles(rows, metric) {
+  const total = rows.reduce((s, r) => s + metricOf(r, metric), 0);
+  const spend = rows.reduce((s, r) => s + (r.cost_usd || 0), 0);
+  const byUser = {}, byModel = {};
+  for (const r of rows) {
+    byUser[r.user] = (byUser[r.user] || 0) + metricOf(r, metric);
+    byModel[r.model] = (byModel[r.model] || 0) + metricOf(r, metric);
+  }
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0] || ["—", 0];
+  const [tu, tuv] = top(byUser), [tm, tmv] = top(byModel);
+  const users = Object.keys(byUser).length;
+  const pct = (v) => total ? ` · ${(100 * v / total).toFixed(0)}% of total` : "";
+  const span = spanDates().length;
+  $("tiles").innerHTML = [
+    [isMoney() ? "API spend" : "Tokens", fmtM(total), $("f-metric").selectedOptions[0].text],
+    ["API spend (est.)", usd(spend), `${usd(spend / span * 30.44)} / month run-rate`],
+    ["Active users", users, users ? `${fmtM(total / users)} per user` : ""],
+    ["Top user", esc(tu), fmtM(tuv) + pct(tuv)],
+    ["Top model", esc(tm), fmtM(tmv) + pct(tmv)],
+  ].map(([l, v, n]) => `<div class="card tile"><div class="label">${l}</div><div class="value" title="${v}">${v}</div><div class="note">${n}</div></div>`).join("");
+}
+
+function renderUsers(rows, metric) {
+  const box = $("chart-users");
+  box.innerHTML = "";
+  const providers = [...new Set(rows.map((r) => r.provider))].sort((a, b) => SLOTS.indexOf(providerColor[a]) - SLOTS.indexOf(providerColor[b]));
+  $("legend-users").innerHTML = providers.length > 1 ? providers.map((p) => `<span>${sw(providerColor[p])}${esc(p)}</span>`).join("") : "";
+  const agg = {};
+  for (const r of rows) {
+    const a = agg[r.user] ||= { user: r.user, total: 0, by: {} };
+    const v = metricOf(r, metric);
+    a.total += v; a.by[r.provider] = (a.by[r.provider] || 0) + v;
+  }
+  const list = Object.values(agg).sort((a, b) => b.total - a.total).slice(0, 25);
+  if (!list.length) { box.innerHTML = `<div class="empty">No usage in this selection</div>`; return; }
+
+  const W = box.clientWidth || 600, labelW = Math.min(200, W * 0.32), valW = 56, barH = 16, gap = 8, top = 20;
+  const H = top + list.length * (barH + gap);
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Usage per user" }, box);
+  const max = niceMax(list[0].total), x0 = labelW, plotW = W - labelW - valW;
+  for (let i = 0; i <= 4; i++) {
+    const x = x0 + plotW * i / 4;
+    el("line", { x1: x, x2: x, y1: top - 4, y2: H, stroke: css(i ? "--grid" : "--axis"), "stroke-width": 1 }, svg);
+    el("text", { x, y: 11, "text-anchor": "middle" }, svg).textContent = fmtM(max * i / 4);
+  }
+  list.forEach((a, i) => {
+    const y = top + i * (barH + gap);
+    const name = a.user.length > 30 ? a.user.slice(0, 29) + "…" : a.user;
+    el("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end", class: "lbl" }, svg).textContent = name;
+    let x = x0;
+    const segs = providers.filter((p) => a.by[p] > 0);
+    segs.forEach((p, j) => {
+      const w = plotW * a.by[p] / max, last = j === segs.length - 1;
+      const drawW = Math.max(0, w - (last ? 0 : 2)); // 2px surface gap between stacked segments
+      if (last && drawW > 4) {
+        // round only the data end
+        const r = 4, xe = x + drawW;
+        el("path", { d: `M${x},${y}H${xe - r}Q${xe},${y} ${xe},${y + r}V${y + barH - r}Q${xe},${y + barH} ${xe - r},${y + barH}H${x}Z`, fill: css(providerColor[p]) }, svg);
+      } else {
+        el("rect", { x, y, width: drawW, height: barH, fill: css(providerColor[p]) }, svg);
+      }
+      x += w;
+    });
+    el("text", { x: x + 6, y: y + barH / 2 + 4, class: "val" }, svg).textContent = fmtM(a.total);
+    const hit = el("rect", { x: 0, y: y - gap / 2, width: W, height: barH + gap, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(e, `<b>${esc(a.user)}</b>` +
+      segs.map((p) => `<div class="r"><span>${sw(providerColor[p])}${esc(p)}</span><span>${fullM(a.by[p])}</span></div>`).join("") +
+      `<div class="r"><span>Total</span><span>${fullM(a.total)}</span></div>`));
+    hit.addEventListener("mouseleave", hideTip);
+  });
+}
+
+function renderDaily(rows, metric) {
+  const box = $("chart-daily");
+  box.innerHTML = "";
+  const dates = [...new Set(rows.map((r) => r.date))].sort();
+  if (!dates.length) { box.innerHTML = `<div class="empty">No usage in this selection</div>`; return; }
+  const series = {};
+  for (const r of rows) {
+    const key = userColor[r.user] ? r.user : "Other";
+    (series[key] ||= {})[r.date] = (series[key][r.date] || 0) + metricOf(r, metric);
+  }
+  const keys = topUsers.filter((u) => series[u]).concat(series.Other ? ["Other"] : []);
+  const color = (k) => css(k === "Other" ? "--other" : userColor[k]);
+  $("legend-daily").innerHTML = keys.map((k) => `<span><i style="background:${color(k)}"></i>${esc(k)}</span>`).join("");
+
+  const W = box.clientWidth || 600, H = 300, m = { l: 52, r: 12, t: 10, b: 28 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const max = niceMax(Math.max(...keys.flatMap((k) => dates.map((d) => series[k][d] || 0))));
+  const X = (i) => m.l + (dates.length === 1 ? pw / 2 : pw * i / (dates.length - 1));
+  const Y = (v) => m.t + ph - ph * v / max;
+  const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Daily usage by user" }, box);
+  for (let i = 0; i <= 4; i++) {
+    const y = Y(max * i / 4);
+    el("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: css(i ? "--grid" : "--axis") }, svg);
+    el("text", { x: m.l - 6, y: y + 4, "text-anchor": "end" }, svg).textContent = fmtM(max * i / 4);
+  }
+  const step = Math.max(1, Math.ceil(dates.length / Math.max(2, Math.floor(pw / 70))));
+  dates.forEach((d, i) => {
+    if (i % step === 0 || i === dates.length - 1)
+      el("text", { x: X(i), y: H - 8, "text-anchor": "middle" }, svg).textContent = d.slice(5);
+  });
+  for (const k of keys) {
+    const pts = dates.map((d, i) => `${X(i)},${Y(series[k][d] || 0)}`).join(" ");
+    el("polyline", { points: pts, fill: "none", stroke: color(k), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+  const cross = el("line", { y1: m.t, y2: m.t + ph, stroke: css("--axis"), visibility: "hidden" }, svg);
+  const dots = keys.map((k) => el("circle", { r: 4, fill: color(k), stroke: css("--surface-1"), "stroke-width": 2, visibility: "hidden" }, svg));
+  const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (e) => {
+    const bx = svg.getBoundingClientRect().left;
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((e.clientX - bx - m.l) / pw * (dates.length - 1))));
+    const d = dates[i];
+    cross.setAttribute("x1", X(i)); cross.setAttribute("x2", X(i)); cross.setAttribute("visibility", "visible");
+    keys.forEach((k, j) => { dots[j].setAttribute("cx", X(i)); dots[j].setAttribute("cy", Y(series[k][d] || 0)); dots[j].setAttribute("visibility", "visible"); });
+    const ordered = keys.map((k) => [k, series[k][d] || 0]).sort((a, b) => b[1] - a[1]);
+    showTip(e, `<b>${d}</b>` + ordered.map(([k, v]) => `<div class="r"><span><i style="background:${color(k)}"></i>${esc(k)}</span><span>${fullM(v)}</span></div>`).join(""));
+  });
+  hit.addEventListener("mouseleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach((c) => c.setAttribute("visibility", "hidden")); });
+}
+
+function renderTable(rows, metric) {
+  const agg = {};
+  for (const r of rows) {
+    const k = r.user + "\u0000" + r.provider + "\u0000" + r.model;
+    const a = agg[k] ||= { user: r.user, model: `${r.provider} / ${r.model}`, input_tokens: 0, output_tokens: 0, cached_tokens: 0, requests: 0, cost_usd: 0, total: 0 };
+    a.input_tokens += r.input_tokens; a.output_tokens += r.output_tokens; a.cached_tokens += r.cached_tokens;
+    a.requests += r.requests; a.cost_usd += r.cost_usd || 0; a.total += metricOf(r, metric);
+  }
+  const list = Object.values(agg).sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  const cols = [["user", "User"], ["model", "Provider / model"], ["input_tokens", "Input"], ["output_tokens", "Output"],
+                ["cached_tokens", "Cache reads"], ["requests", "Requests"], ["cost_usd", "Spend"], ["total", "Selected metric"]];
+  const cell = (k, v) => typeof v !== "number" ? esc(v) : k === "cost_usd" || (k === "total" && isMoney()) ? usdFull(v) : full(v);
+  $("table").innerHTML = `<thead><tr>${cols.map(([k, l]) => `<th data-k="${k}">${l}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}</tr></thead>` +
+    `<tbody>${list.map((a) => `<tr>${cols.map(([k]) => `<td>${cell(k, a[k])}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
+    const k = th.dataset.k;
+    sortDir = k === sortKey ? -sortDir : (k === "user" || k === "model" ? 1 : -1);
+    sortKey = k; render();
+  });
+}
+
+// ===================================================================== On-prem sizing tab
+
+const SZ_FIELDS = ["years", "growth", "price_adj", "seat", "onprem_model", "hours", "burst", "util", "rate", "pue",
+                   "load", "ovh_kw", "sup_yrs", "sup_pct", "fte", "fte_cost", "resid"];
+const HW_FIELDS = [["price", "Price $", 10000], ["kw", "kW", 0.1], ["out_tps", "Out tok/s", 100], ["in_tps", "Prefill tok/s", 1000]];
+let szSelected = null, szLast = null;
+
+function szInit() {
+  const c = DATA.catalog;
+  $("sz-onprem_model").innerHTML = c.models.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  for (const f of SZ_FIELDS) $("sz-" + f).value = c.defaults[f];
+  $("sz-hw").innerHTML = `<thead><tr><th>System</th>${HW_FIELDS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
+    c.systems.map((s) => `<tr><td><label><input type="checkbox" data-sys="${s.id}" data-f="on" checked style="width:auto"> ${esc(s.name)}</label></td>` +
+      HW_FIELDS.map(([f, , st]) => `<td><input type="number" min="0" step="${st}" data-sys="${s.id}" data-f="${f}" value="${s[f]}"></td>`).join("") + `</tr>`).join("") + `</tbody>`;
+  szSelected = null;
+}
+
+function szParams() {
+  const P = {};
+  for (const f of SZ_FIELDS) {
+    const v = $("sz-" + f).value;
+    P[f] = f === "onprem_model" ? v : (isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+  }
+  P.years = Math.min(8, Math.max(1, Math.round(P.years)));
+  P.hours = Math.min(24, Math.max(1, P.hours));
+  P.burst = Math.max(1, P.burst);
+  P.util = Math.min(100, Math.max(10, P.util));
+  return P;
+}
+
+function szSystems() {
+  return DATA.catalog.systems.map((s) => {
+    const o = { ...s, on: true };
+    for (const inp of document.querySelectorAll(`#sz-hw input[data-sys="${s.id}"]`)) {
+      if (inp.dataset.f === "on") o.on = inp.checked;
+      else o[inp.dataset.f] = Math.max(0, parseFloat(inp.value) || 0);
+    }
+    return o;
+  }).filter((s) => s.on && s.price > 0 && s.out_tps > 0 && s.in_tps > 0);
+}
+
+const quantile = (arr, q) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[Math.max(0, Math.ceil(q * s.length) - 1)] : 0; };
+
+function workload(rows) {
+  const dates = spanDates(), byDay = {}, users = new Set(), byModel = {};
+  let cost = 0, inT = 0, outT = 0, cachedT = 0;
+  for (const r of rows) {
+    const d = byDay[r.date] ||= { inp: 0, out: 0 };
+    d.inp += r.input_tokens; d.out += r.output_tokens;
+    inT += r.input_tokens; outT += r.output_tokens; cachedT += r.cached_tokens;
+    cost += r.cost_usd || 0; users.add(r.user);
+    byModel[r.model] = (byModel[r.model] || 0) + (r.cost_usd || 0);
+  }
+  const ins = dates.map((d) => byDay[d]?.inp || 0), outs = dates.map((d) => byDay[d]?.out || 0);
+  return { span: dates.length, users: users.size, cost, inT, outT, cachedT, byModel,
+           p90In: quantile(ins, 0.9), p90Out: quantile(outs, 0.9),
+           activeDays: dates.filter((d) => byDay[d]).length };
+}
+
+// One system type, sized for the workload (times mult) with systems added at the start of any
+// year whose grown demand needs them. Returns monthly cumulative cost for it and for the API.
+function evaluate(sys, wl, P, mult = 1) {
+  const model = DATA.catalog.models.find((m) => m.id === P.onprem_model) || DATA.catalog.models[0];
+  const weights = model.weights_gb[sys.fp4 ? 1 : 0];
+  const perReplica = Math.max(1, Math.ceil(weights * 1.25 / sys.mem_gb)); // 25% for KV cache and activations
+  const capOut = sys.out_tps * model.speed, capIn = sys.in_tps * model.speed, u = P.util / 100;
+  const secs = P.hours * 3600, g = P.growth / 100, Y = P.years, M = Y * 12;
+  const demand = (gf) => ({ out: wl.p90Out * mult * gf / secs * P.burst, inp: wl.p90In * mult * gf / secs * P.burst });
+  const need = (gf) => {
+    const d = demand(gf);
+    const n = Math.max(1, Math.ceil(d.out / (capOut * u)), Math.ceil(d.inp / (capIn * u)));
+    return Math.ceil(n / perReplica) * perReplica;
+  };
+  const N = [];
+  for (let y = 0; y < Y; y++) N[y] = Math.max(y ? N[y - 1] : 0, need(Math.pow(1 + g, y)));
+
+  const apiMo = wl.cost * mult * (1 + P.price_adj / 100) / Math.max(1, wl.span) * 30.44, seatMo = wl.users * P.seat;
+  const br = { hw: N[0] * sys.price, fabric: Math.max(0, N[0] - 1) * sys.fabric, install: N[0] * sys.install, power: 0, staff: 0, support: 0, resid: 0 };
+  const api = [0], on = [br.hw + br.fabric + br.install], apiYr = [], onYr = [on[0]];
+  let fleetHw = br.hw;
+  for (let m = 1; m <= M; m++) {
+    const y = Math.floor((m - 1) / 12);
+    let d = 0;
+    if (y > 0 && (m - 1) % 12 === 0 && N[y] > N[y - 1]) {
+      const add = N[y] - N[y - 1];
+      br.hw += add * sys.price; br.fabric += add * sys.fabric; br.install += add * sys.install;
+      fleetHw += add * sys.price;
+      d += add * (sys.price + sys.fabric + sys.install);
+    }
+    const power = N[y] * (sys.kw * P.load / 100 + P.ovh_kw) * P.pue * 730 * P.rate;
+    const staff = P.fte * P.fte_cost / 12;
+    const support = m > P.sup_yrs * 12 ? fleetHw * P.sup_pct / 100 / 12 : 0;
+    br.power += power; br.staff += staff; br.support += support;
+    d += power + staff + support;
+    if (m === M) { br.resid = fleetHw * P.resid / 100; d -= br.resid; }
+    on.push(on[m - 1] + d);
+    const a = apiMo * Math.pow(1 + g, y) + seatMo;
+    api.push(api[m - 1] + a);
+    apiYr[y] = (apiYr[y] || 0) + a;
+    onYr[y] = (onYr[y] || 0) + d;
+  }
+  let be = null;
+  for (let m = 1; m <= M; m++) if (on[m] <= api[m]) { be = m; break; }
+  const d0 = demand(1), dEnd = demand(Math.pow(1 + g, Y - 1));
+  const util = (d, n) => Math.max(d.out / (capOut * n), d.inp / (capIn * n));
+  return { sys, N, M, perReplica, api, on, apiYr, onYr, be, total: on[M], apiTotal: api[M], br, apiMo,
+           d0, capOut, capIn, util0: util(d0, N[0]), utilEnd: util(dEnd, N[Y - 1]),
+           binding: d0.inp / capIn > d0.out / capOut ? "prefill (input)" : "generation (output)",
+           kw: N[0] * (sys.kw * P.load / 100 + P.ovh_kw) * P.pue };
+}
+
+const qty = (r) => r.N[0] === r.N[r.N.length - 1] ? `${r.N[0]}` : `${r.N[0]} → ${r.N[r.N.length - 1]}`;
+const label = (r, n = r.N[0]) => `${n > 1 ? n + "× " : ""}${r.sys.name}`;
+const beText = (be) => be ? `month ${be} (${(be / 12).toFixed(1)} yrs)` : "never";
+
+function renderSizing(rows) {
+  const P = szParams(), wl = workload(rows), systems = szSystems();
+  if (!wl.cost || !systems.length) {
+    $("sz-verdict").innerHTML = !systems.length ? "Tick at least one system under Hardware prices & throughput."
+      : `No priced usage in this selection<span class="subv">Change the filters above, or generate a report with usage data.</span>`;
+    ["sz-tiles", "sz-cmp", "sz-chart", "sz-profile", "sz-cap", "sz-break", "sz-years-tbl", "sz-legend"].forEach((id) => $(id).innerHTML = "");
+    return;
+  }
+  const opts = systems.map((s) => evaluate(s, wl, P)).sort((a, b) => a.total - b.total || a.N[0] - b.N[0]);
+  const best = opts[0], Y = P.years, saves = best.apiTotal - best.total;
+  if (!opts.find((o) => o.sys.id === szSelected)) szSelected = best.sys.id;
+  const sel = opts.find((o) => o.sys.id === szSelected);
+
+  // Verdict
+  const scope = [$("f-tenant").value, $("f-provider").value].filter(Boolean).join(" · ");
+  const forWho = `${wl.users} user${wl.users === 1 ? "" : "s"}${scope ? " in " + esc(scope) : ""}`;
+  if (saves > 0) {
+    $("sz-verdict").innerHTML = `Recommended: <span style="color:var(--onprem)">${label(best)}</span> pays for itself in ${beText(best.be)}` +
+      `<span class="subv">Saves ${usd(saves)} over ${Y} years versus ${usd(best.apiMo + wl.users * P.seat)}/month of frontier API spend today for ${forWho}` +
+      `${P.growth ? `, growing ${P.growth}%/yr` : ""}. ${best.N[Y - 1] > best.N[0] ? `Plan to grow to ${best.N[Y - 1]} systems by year ${best.N.findIndex((n) => n === best.N[Y - 1]) + 1}.` : ""}</span>`;
+  } else {
+    let k = null;
+    for (const m of [1.5, 2, 3, 4, 5, 7.5, 10, 15, 20, 30, 50, 75, 100]) {
+      if (systems.some((s) => { const r = evaluate(s, wl, P, m); return r.total < r.apiTotal; })) { k = m; break; }
+    }
+    $("sz-verdict").innerHTML = `Stay on frontier APIs for now: <span style="color:var(--api)">API is ${usd(-saves)} cheaper</span> over ${Y} years` +
+      `<span class="subv">At ${usd(best.apiMo + wl.users * P.seat)}/month for ${forWho}, the cheapest on-prem option (${label(best)}) doesn't pay back inside ${Y} years. ` +
+      (k ? `On-prem starts winning at about <b>${k}× today's usage</b>.` : `Even 100× today's usage doesn't justify on-prem with these assumptions.`) + `</span>`;
+  }
+
+  // KPI tiles
+  const tile = (l, v, n, c) => `<div class="card tile"><div class="label">${c ? `<span class="sw" style="background:${css(c)}"></span>` : ""}${l}</div><div class="value" title="${esc(v)}">${v}</div><div class="note">${n}</div></div>`;
+  $("sz-tiles").innerHTML = [
+    tile("API spend / month", usd(sel.apiMo + wl.users * P.seat), `${usd(sel.apiYr[0])} in year 1`, "--api"),
+    tile("Peak demand", fmt(sel.d0.out) + " tok/s", `output · ${fmt(sel.d0.inp)} tok/s prefill`),
+    tile(saves > 0 ? "Recommended cluster" : "Cheapest on-prem", label(best), `${best.N[0] * best.sys.gpus} GPUs · ${best.kw.toFixed(1)} kW avg`, "--onprem"),
+    tile("Breakeven", best.be ? `${(best.be / 12).toFixed(1)} yrs` : "Never", best.be ? `month ${best.be} of ${best.M}` : `within ${Y} years`, "--onprem"),
+  ].join("");
+
+  // Options table
+  $("sz-cmp").innerHTML = `<thead><tr><th>System</th><th>Qty</th><th>GPUs</th><th>Peak load</th><th>Avg kW</th><th>Upfront</th><th>${Y}-yr on-prem</th><th>vs API</th><th>Breakeven</th></tr></thead><tbody>` +
+    opts.map((r) => {
+      const d = r.apiTotal - r.total;
+      const tag = r === best ? `<span class="pill" style="color:${d > 0 ? "var(--good)" : "var(--text-secondary)"}">${d > 0 ? "Recommended" : "Cheapest"}</span>` : "";
+      return `<tr data-id="${r.sys.id}" class="${r === sel ? "sel" : ""}"><td>${esc(r.sys.name)}${tag}<small>${esc(r.sys.detail)}${r.perReplica > 1 ? ` · model needs ${r.perReplica} systems` : ""}</small></td>` +
+        `<td>${qty(r)}</td><td>${r.N[0] * r.sys.gpus}</td><td>${(r.util0 * 100).toFixed(0)}%</td><td>${r.kw.toFixed(1)}</td>` +
+        `<td>${usd(r.on[0])}</td><td>${usd(r.total)}</td>` +
+        `<td style="color:${d >= 0 ? "var(--good)" : "var(--text-secondary)"}">${d >= 0 ? "saves " : "costs +"}${usd(Math.abs(d))}</td><td>${r.be ? "Month " + r.be : "Never"}</td></tr>`;
+    }).join("") + `</tbody>`;
+  $("sz-cmp").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => { szSelected = tr.dataset.id; render(); }));
+
+  // Chart
+  $("sz-chart-hint").textContent = `Month by month over ${Y} years. On-prem jumps at month 0 (purchase)${sel.N[Y - 1] > sel.N[0] ? " and when systems are added" : ""}; resale is credited in the last month.`;
+  $("sz-legend").innerHTML = `<span><i style="background:${css("--api")}"></i>Frontier API (current mix)</span><span><i style="background:${css("--onprem")}"></i>${esc(label(sel))}</span>`;
+  szLast = { api: sel.api, on: sel.on, M: sel.M, be: sel.be, aName: "API", oName: label(sel) };
+  drawSizing();
+
+  // Workload profile
+  const cacheHit = wl.cachedT / Math.max(1, wl.inT + wl.cachedT) * 100;
+  const topModels = Object.entries(wl.byModel).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([m, c]) => `${esc(m)} ${(c / wl.cost * 100).toFixed(0)}%`).join(", ");
+  $("sz-profile-hint").textContent = `From ${wl.span} days of usage (${wl.activeDays} with traffic) matching the filters above.`;
+  $("sz-profile").innerHTML = [
+    ["Users", wl.users],
+    ["API spend in period", usdFull(wl.cost)],
+    ["Output tokens / day", `${fmt(wl.outT / wl.span)} avg · ${fmt(wl.p90Out)} busy day`],
+    ["Uncached input / day", `${fmt(wl.inT / wl.span)} avg · ${fmt(wl.p90In)} busy day`],
+    ["Cache reads / day", fmt(wl.cachedT / wl.span) + ` (${cacheHit.toFixed(0)}% hit rate)`],
+    ["Spend by model", topModels || "—"],
+  ].map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join("");
+
+  // Capacity
+  const pct = sel.util0 * 100;
+  const st = pct < 60 ? ["Plenty of headroom", "--good"] : pct <= P.util ? ["Fits at peak", "--good"] : pct < 100 ? ["Tight at peak", "--warn"] : ["Over capacity", "--bad"];
+  $("sz-cap-title").textContent = `Can ${label(sel)} carry the team?`;
+  $("sz-cap").innerHTML = `<span class="status" style="color:${css(st[1])}">● ${st[0]}</span>
+    <div class="bar"><div style="width:${Math.min(100, pct)}%;background:${css(st[1])}"></div></div>
+    <div class="rows">
+      <div><span>Peak output demand</span><span>${full(sel.d0.out)} tok/s</span></div>
+      <div><span>Output capacity (${sel.N[0]} system${sel.N[0] > 1 ? "s" : ""})</span><span>${full(sel.capOut * sel.N[0])} tok/s</span></div>
+      <div><span>Peak prefill demand</span><span>${full(sel.d0.inp)} tok/s</span></div>
+      <div><span>Prefill capacity</span><span>${full(sel.capIn * sel.N[0])} tok/s</span></div>
+      <div><span>Peak utilization, year 1 → ${Y}</span><span>${pct.toFixed(0)}% → ${(sel.utilEnd * 100).toFixed(0)}%</span></div>
+      <div><span>Limited by</span><span>${sel.binding}</span></div>
+    </div>`;
+
+  // Cost breakdown
+  const b = sel.br;
+  $("sz-break-hint").textContent = `${label(sel, sel.N[Y - 1])} over ${Y} years.`;
+  $("sz-break").innerHTML = [
+    [`Hardware (${sel.N[Y - 1]} × ${usd(sel.sys.price)})`, b.hw], ["Cluster fabric", b.fabric], ["Install / electrical", b.install],
+    [`Power (${sel.kw.toFixed(1)} kW avg at the meter, year 1)`, b.power], ["Ops staff", b.staff], ["Support renewals", b.support],
+    ["Resale credit", -b.resid],
+  ].filter(([n, v]) => v !== 0 || n.startsWith("Hardware")).map(([n, v]) => `<div><span>${n}</span><span>${usdFull(v)}</span></div>`).join("") +
+    `<div class="tot"><span>Total</span><span>${usdFull(sel.total)}</span></div>`;
+
+  // Year by year
+  let ca = 0, co = 0, rowsHtml = "";
+  for (let y = 0; y < Y; y++) {
+    const oy = sel.onYr[y];
+    ca += sel.apiYr[y]; co += oy;
+    rowsHtml += `<tr><td>Year ${y + 1}</td><td>${sel.N[y]}</td><td>${usd(sel.apiYr[y])}</td><td>${usd(oy)}</td><td>${usd(ca)}</td><td>${usd(co)}</td>` +
+      `<td style="color:${ca - co >= 0 ? "var(--good)" : "var(--text-secondary)"}">${ca - co >= 0 ? "On-prem +" : "API +"}${usd(Math.abs(ca - co))}</td></tr>`;
+  }
+  $("sz-years-tbl").innerHTML = `<thead><tr><th>Period</th><th>Systems</th><th>API</th><th>On-prem</th><th>API cum.</th><th>On-prem cum.</th><th>Ahead</th></tr></thead><tbody>${rowsHtml}</tbody>`;
+
+  // Method notes
+  const model = DATA.catalog.models.find((m) => m.id === P.onprem_model);
+  const unpriced = (DATA.unpriced_models || []).filter((m) => rows.some((r) => r.model === m));
+  const cc = rows.some((r) => r.provider.includes("claude code"));
+  $("sz-notes").innerHTML = [
+    `API cost is each row's tokens at list price for its model${P.price_adj ? `, ${P.price_adj > 0 ? "+" : ""}${P.price_adj}%` : ""}, scaled from ${wl.span} days to a 30.4-day month${P.seat ? `, plus $${P.seat}/user/month in seats` : ""}.`,
+    `Peak demand = the 90th-percentile day's tokens spread over a ${P.hours}-hour working day, × ${P.burst} for bursts. Each option is sized so peak stays under ${P.util}% of capacity.`,
+    `On-prem serves ${esc(model ? model.name : "")}; throughput figures are per system for that model class and are estimates. Change them under Hardware prices &amp; throughput.`,
+    `Prompt-cache reads are treated as free on-prem (prefix caching); uncached input costs prefill time.`,
+    unpriced.length ? `No list price known for ${unpriced.map(esc).join(", ")}; priced as a mid-tier model. Edit catalog.py to fix.` : "",
+    cc ? `Claude Code rows can overlap Anthropic API rows when Claude Code runs on API keys. Pick a single provider above if totals look doubled.` : "",
+    DATA.demo ? `This is sample data.` : "",
+  ].filter(Boolean).map((t) => `<li>${t}</li>`).join("");
+}
+
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+
+function drawSizing(printMode) {
+  if (!szLast || activeTab !== "sizing") return;
+  const { api, on, M, be, aName, oName } = szLast;
+  const box = $("sz-chart");
+  const W = printMode ? 720 : Math.max(320, box.clientWidth || 700), H = printMode ? 270 : Math.round(Math.min(340, Math.max(220, W * 0.42)));
+  const pl = 62, pr = 16, pt = 12, pb = 28, iw = W - pl - pr, ih = H - pt - pb;
+  const maxY = Math.max(...api, ...on) * 1.05, step = niceStep(maxY / 5), top = Math.ceil(maxY / step) * step;
+  const x = (m) => pl + m / M * iw, y = (v) => pt + ih - (Math.max(0, v) / top) * ih;
+  let g = "";
+  for (let v = 0; v <= top + 1e-6; v += step) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--grid")}"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end">${usd(v)}</text>`;
+  for (let yr = 0; yr <= M / 12; yr++) { const xx = x(yr * 12); g += `<line x1="${xx}" x2="${xx}" y1="${pt + ih}" y2="${pt + ih + 4}" stroke="${css("--axis")}"/><text x="${xx}" y="${H - 8}" text-anchor="middle">${yr === 0 ? "Start" : "Yr " + yr}</text>`; }
+  const path = (a) => a.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join("");
+  let beMark = "";
+  if (be) {
+    const right = x(be) > W * 0.7;
+    beMark = `<line x1="${x(be)}" x2="${x(be)}" y1="${pt}" y2="${pt + ih}" stroke="${css("--muted")}" stroke-dasharray="3 3"/>` +
+      `<circle cx="${x(be)}" cy="${y(on[be])}" r="5" fill="${css("--surface-1")}" stroke="${css("--text-primary")}" stroke-width="2"/>` +
+      `<text x="${x(be) + (right ? -8 : 8)}" y="${pt + 14}" class="val" text-anchor="${right ? "end" : "start"}">Breakeven · month ${be}</text>`;
+  }
+  const lab = (a, col, name, dy) => `<text x="${W - pr}" y="${y(a[M]) + dy}" text-anchor="end" class="lbl" font-weight="600">${esc(name)} ${usd(a[M])}</text><circle cx="${x(M)}" cy="${y(a[M])}" r="4" fill="${col}" stroke="${css("--surface-1")}" stroke-width="2"/>`;
+  const above = api[M] >= on[M], gap = Math.abs(y(api[M]) - y(on[M]));
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative cost, frontier API vs on-prem">
+    ${g}<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" stroke="${css("--axis")}"/>${beMark}
+    <path d="${path(on)}" fill="none" stroke="${css("--onprem")}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${path(api)}" fill="none" stroke="${css("--api")}" stroke-width="2" stroke-linejoin="round"/>
+    ${lab(api, css("--api"), aName, above || gap > 16 ? -8 : 16)}${lab(on, css("--onprem"), oName, !above || gap > 16 ? (above ? 16 : -8) : -8)}
+    <line id="sz-xh" y1="${pt}" y2="${pt + ih}" stroke="${css("--axis")}" visibility="hidden"/>
+    <rect id="sz-hit" x="${pl}" y="${pt}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
+  const hit = $("sz-hit"), xh = $("sz-xh"), sv = box.querySelector("svg");
+  const move = (ev) => {
+    const r = sv.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+    const m = Math.max(0, Math.min(M, Math.round((px - pl) / iw * M))), d = api[m] - on[m];
+    xh.setAttribute("x1", x(m)); xh.setAttribute("x2", x(m)); xh.setAttribute("visibility", "visible");
+    showTip(ev, `<b>Month ${m} <span style="font-weight:400;color:${css("--muted")}">(yr ${(m / 12).toFixed(1)})</span></b>` +
+      `<div class="r"><span>${sw("--api")}${esc(aName)}</span><span>${usdFull(api[m])}</span></div>` +
+      `<div class="r"><span>${sw("--onprem")}${esc(oName)}</span><span>${usdFull(on[m])}</span></div>` +
+      `<div class="r"><span>${d >= 0 ? "On-prem ahead" : "API ahead"}</span><span>${usd(Math.abs(d))}</span></div>`);
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { hideTip(); xh.setAttribute("visibility", "hidden"); });
+}
+
+// ===================================================================== Grafana tab
+
+function renderGrafana() {
+  if (!GRAFANA) {
+    $("gf-sub").textContent = "Load usage data to get a Grafana dashboard.";
+    $("gf-download").disabled = true;
+    return;
+  }
+  $("gf-download").disabled = false;
+  $("gf-sub").textContent = `"${GRAFANA.title}", ${GRAFANA.panels.length} panels, data for ${DATA.start} → ${DATA.end}.`;
+  const kinds = { stat: "Stat", timeseries: "Time series", barchart: "Bar chart", "status-history": "Usage map", piechart: "Donut", table: "Table" };
+  $("gf-panels").innerHTML = GRAFANA.panels.map((p) => `<div><span>${esc(p.title)}</span><span>${kinds[p.type] || p.type}</span></div>`).join("");
+}
+$("gf-download").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(GRAFANA, null, 1)], { type: "application/json" }));
+  a.download = "grafana-dashboard.json";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+// ===================================================================== wiring
+
+function render() {
+  $("filters").style.display = activeTab === "grafana" || activeTab === "data" ? "none" : "";
+  if (!DATA) return;
+  const rows = filtered();
+  document.querySelectorAll(".usage-only").forEach((e) => e.style.display = activeTab === "usage" ? "" : "none");
+  if (activeTab === "usage") {
+    const metric = $("f-metric").value;
+    renderTiles(rows, metric);
+    renderUsers(rows, metric);
+    renderDaily(rows, metric);
+    renderTable(rows, metric);
+  } else if (activeTab === "sizing") {
+    renderSizing(rows);
+  }
+}
+
+function showTab(name) {
+  activeTab = name && $("tab-" + name) ? name : "usage";
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === activeTab));
+  document.querySelectorAll("[role=tabpanel]").forEach((s) => s.hidden = s.id !== "tab-" + activeTab);
+  if (location.hash.slice(1) !== activeTab) history.replaceState(null, "", "#" + activeTab);
+  hideTip();
+  render();
+}
+
+function load(data) {
+  DATA = data;
+  providerColor = {}; userColor = {};
+  assignColors();
+  fillSelect("f-provider", [...new Set(DATA.rows.map((r) => r.provider))].sort(), "All providers");
+  fillSelect("f-tenant", [...new Set(DATA.rows.map((r) => r.tenant).filter(Boolean))].sort(), "All tenants");
+  $("sub").textContent = `${DATA.start} → ${DATA.end} · ${DATA.rows.length.toLocaleString()} rows · generated ${DATA.generated_at}`;
+  $("banner").innerHTML = (DATA.demo ? `<div class="banner">Sample data from a made-up 80-person organization, not a real customer.</div>` : "") +
+    (DATA.notes || []).map((n) => `<div class="banner">${esc(n)}</div>`).join("");
+  if (DATA.catalog) szInit();
+  else document.querySelector('[data-tab="sizing"]').hidden = true;
+  renderGrafana();
+  showTab(location.hash.slice(1));
+}
+
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+["f-provider", "f-tenant", "f-range", "f-metric"].forEach((id) => $(id).addEventListener("change", render));
+$("f-user").addEventListener("input", render);
+$("f-file").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) load(JSON.parse(await f.text())); });
+$("sz-inputs").addEventListener("input", () => render());
+$("sz-reset").addEventListener("click", () => { szInit(); render(); });
+$("sz-print").addEventListener("click", () => { drawSizing(true); print(); });
+addEventListener("beforeprint", () => drawSizing(true));
+addEventListener("afterprint", () => drawSizing());
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+
+/*__WEB_INTAKE__*/
+if (EMBEDDED) load(EMBEDDED);
+else if (typeof intakeStart === "function") intakeStart();
+else { $("loader").style.display = "flex"; $("sub").textContent = "No embedded data — load a usage.json produced by fetch_usage.py"; renderGrafana(); }
+</script>
+</body>
+</html>

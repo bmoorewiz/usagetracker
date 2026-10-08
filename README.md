@@ -81,7 +81,7 @@ size for one team or the whole org. For each system type the tab:
    fits in memory, then adds systems at the start of any year whose growth needs them.
 3. Builds month-by-month cumulative cost for on-prem (hardware, fabric, install, power × PUE, staff,
    support after the included years, minus resale) and for the API (current spend growing yearly), and
-   reports the breakeven month. Of the options that beat the API and cost at most 25% more than the
+   reports the breakeven month. Of the options that beat the API and cost at most 50% more than the
    cheapest (editable), the one needing the fewest systems in year 1 is recommended, since one model
    serves better on one system than spread across several; the lowest cost breaks ties, and the cheapest
    option is still flagged when it differs. If none beats the API, it shows the cheapest and says roughly
@@ -91,6 +91,14 @@ Every assumption can be edited in the browser, including each system's price, kW
 Change the defaults for everyone in `catalog.py`, which also holds the API list prices used to price
 each usage row. Hardware prices and throughputs are estimates. Rubin and Vera Rubin numbers in
 particular are pre-release projections, so check them against a current quote before a customer sees them.
+
+The Rubin systems need liquid cooling, which most customer sites don't have, so they start unticked
+(`"liquid": True` in `catalog.py`); tick them under **Hardware prices & throughput** when the site can cool
+them. **Model to serve on-prem** offers three generic size classes plus five named open-weight models:
+Kimi K3, DeepSeek V4-Pro, GLM-5.2, Nemotron 3 Ultra and gpt-oss-120b. Each has its weight size at FP8
+and FP4 and a speed factor estimated from its total and active parameters. The names show each model's
+origin, because many federal customers can't run Chinese-origin models. Check parameter counts and
+licenses on the model card before quoting.
 
 ## Grafana
 

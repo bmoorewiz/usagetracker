@@ -249,7 +249,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-si
         <div class="field"><label for="sz-resid">Resale at end<small>% of hardware</small></label><input id="sz-resid" type="number" min="0" max="100" step="5"></div>
         <details>
           <summary>Hardware prices &amp; throughput</summary>
-          <p class="notes">Per system. Throughput is output tok/s for a ~1T-param open MoE model; prefill is uncached input tok/s. Untick to leave a system out.</p>
+          <p class="notes">Per system. Throughput is output tok/s for a ~1T-param open MoE model; prefill is uncached input tok/s. Untick to leave a system out. Liquid-cooled systems start unticked because most sites can't cool them.</p>
           <table class="hw" id="sz-hw"></table>
           <button class="linkbtn" id="sz-reset" type="button">Reset all assumptions</button>
         </details>
@@ -577,7 +577,7 @@ function szInit() {
   $("sz-onprem_model").innerHTML = c.models.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
   for (const f of SZ_FIELDS) $("sz-" + f).value = c.defaults[f];
   $("sz-hw").innerHTML = `<thead><tr><th>System</th>${HW_FIELDS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
-    c.systems.map((s) => `<tr><td><label><input type="checkbox" data-sys="${s.id}" data-f="on" checked style="width:auto"> ${esc(s.name)}</label></td>` +
+    c.systems.map((s) => `<tr><td><label><input type="checkbox" data-sys="${s.id}" data-f="on"${s.liquid ? "" : " checked"} style="width:auto"> ${esc(s.name)}${s.liquid ? " <small>(liquid cooled)</small>" : ""}</label></td>` +
       HW_FIELDS.map(([f, , st]) => `<td><input type="number" min="0" step="${st}" data-sys="${s.id}" data-f="${f}" value="${s[f]}"></td>`).join("") + `</tr>`).join("") + `</tbody>`;
   szSelected = null;
 }
@@ -803,6 +803,8 @@ function renderSizing(rows) {
     `Peak demand = the 90th-percentile day's tokens spread over a ${P.hours}-hour working day, × ${P.burst} for bursts. Each option is sized so peak stays under ${P.util}% of capacity.`,
     `The recommendation is the option that beats the API on the fewest systems in year 1 (one model is simpler and serves better on one system than spread across several), among options costing at most ${P.consol}% more than the cheapest over ${Y} years; the lowest cost breaks ties.`,
     `On-prem serves ${esc(model ? model.name : "")}; throughput figures are per system for that model class and are estimates. Change them under Hardware prices &amp; throughput.`,
+    DATA.catalog.systems.some((s) => s.liquid && !systems.some((x) => x.id === s.id))
+      ? `Liquid-cooled systems (${DATA.catalog.systems.filter((s) => s.liquid).map((s) => esc(s.name)).join(", ")}) are left out because most sites don't have liquid cooling. Tick them under Hardware prices &amp; throughput if the customer does.` : "",
     `Prompt-cache reads are treated as free on-prem (prefix caching); uncached input costs prefill time.`,
     unpriced.length ? `No list price known for ${unpriced.map(esc).join(", ")}; priced as a mid-tier model. Edit catalog.py to fix.` : "",
     cc ? `Claude Code rows can overlap Anthropic API rows when Claude Code runs on API keys. Pick a single provider above if totals look doubled.` : "",

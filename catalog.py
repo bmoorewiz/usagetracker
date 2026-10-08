@@ -89,19 +89,30 @@ SYSTEMS: list[dict] = [
     {"id": "b300", "name": "DGX B300", "detail": "8× B300 288 GB, NVLink 5",
      "gpus": 8, "mem_gb": 2304, "fp4": True, "price": 850_000, "kw": 14.5, "out_tps": 8_000, "in_tps": 80_000,
      "fabric": 60_000, "install": 25_000, "ru": 10},
-    {"id": "rubin8", "name": "HGX Rubin NVL8", "detail": "8× Rubin 288 GB HBM4 (estimate)",
+    # Rubin needs liquid cooling, which most customer sites don't have, so it starts unticked ("liquid").
+    {"id": "rubin8", "name": "HGX Rubin NVL8", "detail": "8× Rubin 288 GB HBM4, liquid cooled (estimate)", "liquid": True,
      "gpus": 8, "mem_gb": 2304, "fp4": True, "price": 1_150_000, "kw": 20.0, "out_tps": 18_000, "in_tps": 200_000,
      "fabric": 70_000, "install": 40_000, "ru": 10},
-    {"id": "vr72", "name": "Vera Rubin NVL72", "detail": "Rack: 72× Rubin, 36× Vera CPU, liquid cooled (estimate)",
+    {"id": "vr72", "name": "Vera Rubin NVL72", "detail": "Rack: 72× Rubin, 36× Vera CPU, liquid cooled (estimate)", "liquid": True,
      "gpus": 72, "mem_gb": 20_736, "fp4": True, "price": 6_500_000, "kw": 190.0, "out_tps": 160_000, "in_tps": 1_800_000,
      "fabric": 250_000, "install": 150_000, "ru": 48},
 ]
 
-# What the on-prem cluster would serve. weights_gb is (FP8, FP4); speed scales SYSTEMS throughput.
+# What the on-prem cluster would serve. weights_gb is (FP8, FP4), about 1.05 and 0.56 GB per billion
+# params. speed scales SYSTEMS throughput relative to the ~1T / 32B-active baseline:
+# sqrt((32 / active B) * (1000 / total B)), capped at 5 for small models where per-request overhead dominates.
+# Named models' parameter counts are from public model cards and roundups as of 2026-10-08; check the
+# model card before quoting. Origin matters for federal customers, so it's in the name.
 ONPREM_MODELS: list[dict] = [
     {"id": "large", "name": "Frontier-class open MoE (~1T params)", "weights_gb": [1050, 560], "speed": 1.0},
     {"id": "mid", "name": "Mid-size open MoE (~300B params)", "weights_gb": [330, 180], "speed": 2.2},
     {"id": "small", "name": "Efficient open model (~120B params)", "weights_gb": [125, 70], "speed": 5.0},
+    {"id": "kimi-k3", "name": "Kimi K3 (Moonshot, CN): 2.8T total / 104B active", "weights_gb": [2940, 1568], "speed": 0.33},
+    {"id": "deepseek-v4-pro", "name": "DeepSeek V4-Pro (CN): 1.6T / 49B active", "weights_gb": [1680, 896], "speed": 0.64},
+    {"id": "glm-5.2", "name": "GLM-5.2 (Z.ai, CN): 744B / 40B active", "weights_gb": [781, 417], "speed": 1.04},
+    {"id": "nemotron-3-ultra", "name": "Nemotron 3 Ultra (NVIDIA, US): 550B / 55B active", "weights_gb": [578, 308], "speed": 1.03},
+    # Ships in MXFP4 (~63 GB), which Hopper also serves, so both entries are the released weights.
+    {"id": "gpt-oss-120b", "name": "gpt-oss-120b (OpenAI, US): 117B / 5.1B active", "weights_gb": [63, 63], "speed": 5.0},
 ]
 
 # Defaults for the sizing tab; the user can change all of these in the browser.
@@ -114,7 +125,7 @@ SIZING_DEFAULTS = {
     "hours": 10,            # working day the traffic lands in
     "burst": 2,             # peak-to-average within that day
     "util": 80,             # plan to run at most this % of capacity at peak
-    "consol": 25,           # pay up to this % more than the cheapest option to run the model on fewer systems
+    "consol": 50,           # pay up to this % more than the cheapest option to run the model on fewer systems
     "load": 60,             # average power draw, % of max, 24/7
     "ovh_kw": 1.5,          # switch / storage kW per system
     "pue": 1.3,

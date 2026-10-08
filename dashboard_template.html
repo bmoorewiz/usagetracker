@@ -236,6 +236,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-si
         <div class="field"><label for="sz-hours">Working hours / day<small>when the traffic lands</small></label><input id="sz-hours" type="number" min="1" max="24" step="1"></div>
         <div class="field"><label for="sz-burst">Peak burst ×<small>busiest minutes vs average</small></label><input id="sz-burst" type="number" min="1" step="0.5"></div>
         <div class="field"><label for="sz-util">Max utilization at peak %</label><input id="sz-util" type="number" min="10" max="100" step="5"></div>
+        <div class="field"><label for="sz-consol">Pay more for fewer systems, %<small>over the cheapest, to keep the model on fewer boxes</small></label><input id="sz-consol" type="number" min="0" step="5"></div>
         <h3>Operating costs</h3>
         <div class="field"><label for="sz-rate">Power $ / kWh</label><input id="sz-rate" type="number" step="0.01" min="0"></div>
         <div class="field"><label for="sz-pue">PUE<small>cooling overhead</small></label><input id="sz-pue" type="number" step="0.05" min="1"></div>
@@ -566,7 +567,7 @@ function renderTable(rows, metric) {
 
 // ===================================================================== On-prem sizing tab
 
-const SZ_FIELDS = ["years", "growth", "price_adj", "seat", "onprem_model", "hours", "burst", "util", "rate", "pue",
+const SZ_FIELDS = ["years", "growth", "price_adj", "seat", "onprem_model", "hours", "burst", "util", "consol", "rate", "pue",
                    "load", "ovh_kw", "sup_yrs", "sup_pct", "fte", "fte_cost", "resid"];
 const HW_FIELDS = [["price", "Price $", 10000], ["kw", "kW", 0.1], ["out_tps", "Out tok/s", 100], ["in_tps", "Prefill tok/s", 1000]];
 let szSelected = null, szLast = null;
@@ -687,7 +688,13 @@ function renderSizing(rows) {
     ["sz-tiles", "sz-cmp", "sz-chart", "sz-profile", "sz-cap", "sz-break", "sz-years-tbl", "sz-legend"].forEach((id) => $(id).innerHTML = "");
     return;
   }
+  // One model is easier and better served on as few systems as possible: among options that beat the API and
+  // cost at most P.consol% more than the cheapest, the fewest year-1 systems wins, then cost. If none beats the
+  // API, the cheapest is shown.
   const opts = systems.map((s) => evaluate(s, wl, P)).sort((a, b) => a.total - b.total || a.N[0] - b.N[0]);
+  const cheapest = opts[0];
+  const inBand = (r) => r.total < r.apiTotal && r.total <= cheapest.total * (1 + P.consol / 100);
+  opts.sort((a, b) => inBand(b) - inBand(a) || (inBand(a) ? a.N[0] - b.N[0] : 0) || a.total - b.total || a.N[0] - b.N[0]);
   const best = opts[0], Y = P.years, saves = best.apiTotal - best.total;
   if (!opts.find((o) => o.sys.id === szSelected)) szSelected = best.sys.id;
   const sel = opts.find((o) => o.sys.id === szSelected);
@@ -698,7 +705,8 @@ function renderSizing(rows) {
   if (saves > 0) {
     $("sz-verdict").innerHTML = `Recommended: <span style="color:var(--onprem)">${label(best)}</span> pays for itself in ${beText(best.be)}` +
       `<span class="subv">Saves ${usd(saves)} over ${Y} years versus ${usd(best.apiMo + wl.users * P.seat)}/month of frontier API spend today for ${forWho}` +
-      `${P.growth ? `, growing ${P.growth}%/yr` : ""}. ${best.N[Y - 1] > best.N[0] ? `Plan to grow to ${best.N[Y - 1]} systems by year ${best.N.findIndex((n) => n === best.N[Y - 1]) + 1}.` : ""}</span>`;
+      `${P.growth ? `, growing ${P.growth}%/yr` : ""}. ${best.N[Y - 1] > best.N[0] ? `Plan to grow to ${best.N[Y - 1]} systems by year ${best.N.findIndex((n) => n === best.N[Y - 1]) + 1}.` : ""}` +
+      (cheapest !== best ? ` ${label(cheapest)} is ${usd(best.total - cheapest.total)} cheaper over ${Y} years but spreads the model across ${cheapest.N[0]} systems.` : "") + `</span>`;
   } else {
     let k = null;
     for (const m of [1.5, 2, 3, 4, 5, 7.5, 10, 15, 20, 30, 50, 75, 100]) {
@@ -722,7 +730,8 @@ function renderSizing(rows) {
   $("sz-cmp").innerHTML = `<thead><tr><th>System</th><th>Qty</th><th>GPUs</th><th>Peak load</th><th>Avg kW</th><th>Upfront</th><th>${Y}-yr on-prem</th><th>vs API</th><th>Breakeven</th></tr></thead><tbody>` +
     opts.map((r) => {
       const d = r.apiTotal - r.total;
-      const tag = r === best ? `<span class="pill" style="color:${d > 0 ? "var(--good)" : "var(--text-secondary)"}">${d > 0 ? "Recommended" : "Cheapest"}</span>` : "";
+      const tag = r === best ? `<span class="pill" style="color:${d > 0 ? "var(--good)" : "var(--text-secondary)"}">${d > 0 ? "Recommended" : "Cheapest"}</span>`
+        : r === cheapest ? `<span class="pill" style="color:var(--text-secondary)">Lowest cost</span>` : "";
       return `<tr data-id="${r.sys.id}" class="${r === sel ? "sel" : ""}"><td>${esc(r.sys.name)}${tag}<small>${esc(r.sys.detail)}${r.perReplica > 1 ? ` · model needs ${r.perReplica} systems` : ""}</small></td>` +
         `<td>${qty(r)}</td><td>${r.N[0] * r.sys.gpus}</td><td>${(r.util0 * 100).toFixed(0)}%</td><td>${r.kw.toFixed(1)}</td>` +
         `<td>${usd(r.on[0])}</td><td>${usd(r.total)}</td>` +
@@ -792,6 +801,7 @@ function renderSizing(rows) {
   $("sz-notes").innerHTML = [
     `API cost is each row's tokens at list price for its model${P.price_adj ? `, ${P.price_adj > 0 ? "+" : ""}${P.price_adj}%` : ""}, scaled from ${wl.span} days to a 30.4-day month${P.seat ? `, plus $${P.seat}/user/month in seats` : ""}.`,
     `Peak demand = the 90th-percentile day's tokens spread over a ${P.hours}-hour working day, × ${P.burst} for bursts. Each option is sized so peak stays under ${P.util}% of capacity.`,
+    `The recommendation is the option that beats the API on the fewest systems in year 1 (one model is simpler and serves better on one system than spread across several), among options costing at most ${P.consol}% more than the cheapest over ${Y} years; the lowest cost breaks ties.`,
     `On-prem serves ${esc(model ? model.name : "")}; throughput figures are per system for that model class and are estimates. Change them under Hardware prices &amp; throughput.`,
     `Prompt-cache reads are treated as free on-prem (prefix caching); uncached input costs prefill time.`,
     unpriced.length ? `No list price known for ${unpriced.map(esc).join(", ")}; priced as a mid-tier model. Edit catalog.py to fix.` : "",
@@ -911,7 +921,9 @@ document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("cli
 ["f-provider", "f-tenant", "f-range", "f-metric"].forEach((id) => $(id).addEventListener("change", render));
 $("f-user").addEventListener("input", render);
 $("f-file").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) load(JSON.parse(await f.text())); });
-$("sz-inputs").addEventListener("input", () => render());
+// Checkboxes re-size on "change": some browsers (older Safari) never fire "input" for them.
+$("sz-inputs").addEventListener("input", (e) => { if (e.target.type !== "checkbox") render(); });
+$("sz-inputs").addEventListener("change", (e) => { if (e.target.type === "checkbox") render(); });
 $("sz-reset").addEventListener("click", () => { szInit(); render(); });
 $("sz-print").addEventListener("click", () => { drawSizing(true); print(); });
 addEventListener("beforeprint", () => drawSizing(true));

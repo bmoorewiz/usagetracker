@@ -114,6 +114,7 @@ SIZING_DEFAULTS = {
     "hours": 10,            # working day the traffic lands in
     "burst": 2,             # peak-to-average within that day
     "util": 80,             # plan to run at most this % of capacity at peak
+    "consol": 25,           # pay up to this % more than the cheapest option to run the model on fewer systems
     "load": 60,             # average power draw, % of max, 24/7
     "ovh_kw": 1.5,          # switch / storage kW per system
     "pue": 1.3,

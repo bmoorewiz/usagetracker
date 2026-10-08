@@ -81,8 +81,11 @@ size for one team or the whole org. For each system type the tab:
    fits in memory, then adds systems at the start of any year whose growth needs them.
 3. Builds month-by-month cumulative cost for on-prem (hardware, fabric, install, power × PUE, staff,
    support after the included years, minus resale) and for the API (current spend growing yearly), and
-   reports the breakeven month. The cheapest option over the horizon is recommended. If none beats the
-   API, it says roughly how many times today's usage would make on-prem pay off.
+   reports the breakeven month. Of the options that beat the API and cost at most 25% more than the
+   cheapest (editable), the one needing the fewest systems in year 1 is recommended, since one model
+   serves better on one system than spread across several; the lowest cost breaks ties, and the cheapest
+   option is still flagged when it differs. If none beats the API, it shows the cheapest and says roughly
+   how many times today's usage would make on-prem pay off.
 
 Every assumption can be edited in the browser, including each system's price, kW and throughput.
 Change the defaults for everyone in `catalog.py`, which also holds the API list prices used to price

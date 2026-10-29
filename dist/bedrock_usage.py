@@ -82,17 +82,20 @@ def model_ids(region):
 
 
 def daily_rows(region, ids):
-    """One row per UTC day and model from CloudWatch, 500 metric queries per call."""
+    """One row per UTC day and model from CloudWatch, 500 metric queries per call. Bedrock also publishes
+    the same metrics with no model dimension; usage there that no listed model accounts for (custom or
+    imported models, application inference profile ARNs) is reported as model "unknown"."""
     cw = boto3.client("cloudwatch", region_name=region)
     queries, key = [], {}
-    for i, mid in enumerate(ids):
+    for i, mid in enumerate([None] + ids):
         for j, met in enumerate(METRICS):
             qid = f"q{i}_{j}"
             key[qid] = (mid, met)
             queries.append({"Id": qid, "ReturnData": True, "MetricStat": {
-                "Metric": {"Namespace": "AWS/Bedrock", "MetricName": met, "Dimensions": [{"Name": "ModelId", "Value": mid}]},
+                "Metric": {"Namespace": "AWS/Bedrock", "MetricName": met,
+                           "Dimensions": [{"Name": "ModelId", "Value": mid}] if mid else []},
                 "Period": 86400, "Stat": "Sum"}})
-    totals = {}  # (day, model) -> {metric: sum}
+    totals = {}  # (day, model) -> {metric: sum}; model None = account-wide
     for k in range(0, len(queries), 500):
         token = None
         while True:
@@ -109,9 +112,15 @@ def daily_rows(region, ids):
             token = resp.get("NextToken")
             if not token:
                 break
+    for (day, mid), t in [(k, v) for k, v in totals.items() if k[1] is None]:  # leave only the unexplained part
+        for met in METRICS:
+            seen = sum(v.get(met, 0) for (d, m), v in totals.items() if d == day and m)
+            t[met] = max(0, t.get(met, 0) - seen)
+        if not any(t.values()):
+            del totals[(day, None)]
     rows = []
-    for (day, mid), t in sorted(totals.items()):
-        rows.append([day, PROVIDER, "", mid, region,
+    for (day, mid), t in sorted(totals.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        rows.append([day, PROVIDER, "", mid or "unknown", region,
                      int(t.get("InputTokenCount", 0) + t.get("CacheWriteInputTokenCount", 0)),
                      int(t.get("OutputTokenCount", 0)), int(t.get("CacheReadInputTokenCount", 0)), int(t.get("Invocations", 0))])
     return rows
@@ -179,6 +188,9 @@ def main():
         daily += got
         if got:
             log(f"  {region}: {len(got)} daily rows across {len({r[3] for r in got})} models")
+            if any(r[3] == "unknown" for r in got):
+                log(f"  {region}: some usage is under model ids CloudWatch doesn't list (custom models or application "
+                    "inference profiles); it's included as model \"unknown\" and priced at the fallback rate")
         else:
             log(f"  {region}: no Bedrock metrics in the window (checked {len(ids)} model ids)")
         try:

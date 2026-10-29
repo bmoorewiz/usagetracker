@@ -4,6 +4,7 @@
 # Run it in AWS CloudShell (the terminal icon at the top of the AWS console; nothing to install):
 #   1. Paste this whole script into a file:   cat > bedrock_usage.py   (paste, then Ctrl-D)
 #   2. Run it:                                python3 bedrock_usage.py
+#      If your role only has access to some regions, name them:   python3 bedrock_usage.py us-east-1 us-west-2
 #   3. Download the CSVs: CloudShell > Actions > Download file > bedrock-daily.csv (and bedrock-users.csv)
 # Needs read-only access (the AWS managed ReadOnlyAccess policy is enough). It only reads metrics
 # and logs; nothing leaves the account except the CSV files you download.
@@ -49,7 +50,9 @@ def log(msg):
 
 
 def regions():
-    """Every region enabled on the account; falls back to the current one if EC2 can't be asked."""
+    """Regions named on the command line, else every region enabled on the account, else the current one."""
+    if sys.argv[1:]:
+        return sys.argv[1:]
     try:
         return sorted(r["RegionName"] for r in boto3.client("ec2").describe_regions()["Regions"])
     except Exception as e:  # noqa: BLE001
@@ -150,29 +153,47 @@ def write(path, rows):
         w.writerows(rows)
 
 
+def why(e):
+    """Short reason for a failed AWS call: the operation and error code, not the whole ARN."""
+    r = getattr(e, "response", {}) or {}
+    op = getattr(e, "operation_name", None) or (r.get("ResponseMetadata") or {}).get("OperationName") or ""
+    code = (r.get("Error") or {}).get("Code") or e.__class__.__name__
+    return f"{code} on {op}" if op else code
+
+
 def main():
     log(f"Bedrock usage {START:%Y-%m-%d} to {(END - timedelta(days=1)):%Y-%m-%d} (UTC)")
-    daily, users, logged = [], [], []
+    daily, users, logged, denied, checked = [], [], [], [], []
     for region in regions():
         try:
             ids = model_ids(region)
-        except Exception as e:  # noqa: BLE001 - Bedrock isn't in every region
-            log(f"  {region}: skipped ({e.__class__.__name__}: {str(e)[:160]})")
+        except Exception as e:  # noqa: BLE001 - Bedrock isn't in every region, and roles are often region-limited
+            if "AccessDenied" in why(e):
+                denied.append(region)
+            else:
+                log(f"  {region}: skipped ({why(e)})")
             continue
+        checked.append(region)
         got = daily_rows(region, ids)
         daily += got
         if got:
             log(f"  {region}: {len(got)} daily rows across {len({r[3] for r in got})} models")
+        else:
+            log(f"  {region}: no Bedrock metrics in the window (checked {len(ids)} model ids)")
         try:
             u = user_rows(region)
         except Exception as e:  # noqa: BLE001
-            log(f"  {region}: couldn't read invocation logs ({e.__class__.__name__})")
+            log(f"  {region}: couldn't read invocation logs ({why(e)})")
             u = None
         if u is not None:
             logged.append(region)
             users += u
+    if denied:
+        log(f"  Access denied in {len(denied)} region(s): {', '.join(denied)}. If your role is limited to certain "
+            f"regions, run:  python3 bedrock_usage.py {' '.join(checked) or '<region>'}")
     if not daily and not users:
-        sys.exit("No Bedrock usage found in the last 30 days in any enabled region.")
+        sys.exit("No Bedrock usage found in the last 30 days in " + (", ".join(checked) if checked else "any readable region")
+                 + ".\nTo confirm: CloudWatch console > Metrics > All metrics > AWS/Bedrock, in the region the customer uses.")
     write("bedrock-daily.csv", daily)
     log(f"Wrote bedrock-daily.csv: {len(daily)} rows, {len({r[0] for r in daily})} days with usage.")
     if users:

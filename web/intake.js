@@ -455,8 +455,16 @@ function renderPrompt() {
   const p = WEB.prompts[intake.prompt];
   $("in-pick").innerHTML = WEB.prompts.map((q, i) =>
     `<button type="button" role="radio" aria-checked="${i === intake.prompt}" data-i="${i}">${esc(q.name)}</button>`).join("");
-  $("in-where").textContent = `${p.run ? "Run in" : "Paste into"}: ${p.where}`;
+  // A script entry leads with its one-line command; the script itself is the collapsed alternative.
+  $("in-where").hidden = !!p.run;
+  $("in-run").hidden = !p.run;
+  if (p.run) { $("in-run-where").textContent = p.where; $("in-cmd").textContent = p.command; }
+  else $("in-where").textContent = `Paste into: ${p.where}`;
+  $("in-alt").classList.toggle("plain", !p.run);
+  $("in-alt").open = !p.run;
   $("in-copy").textContent = p.run ? "Copy script" : "Copy prompt";
+  $("in-copy").classList.toggle("primary", !p.run);
+  $("in-cmd-copied").textContent = "";
   $("in-note").hidden = !p.note;
   $("in-note").innerHTML = p.note ? `<b>Check before relying on this:</b> ${esc(p.note)}` : "";
   $("in-prompt").textContent = p.text;
@@ -547,6 +555,14 @@ function intakeStart() {
 $("in-pick").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   intake.prompt = +b.dataset.i; renderPrompt();
+});
+$("in-cmd-copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(WEB.prompts[intake.prompt].command); }
+  catch {
+    const r = document.createRange(); r.selectNodeContents($("in-cmd"));
+    getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy");
+  }
+  $("in-cmd-copied").textContent = "Copied.";
 });
 $("in-copy").addEventListener("click", async () => {
   const text = WEB.prompts[intake.prompt].text;

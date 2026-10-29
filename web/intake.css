@@ -32,3 +32,15 @@ pre.prompt {
 .in-callout { font-size: 12px; line-height: 1.5; margin: 6px 0 8px; padding: 8px 10px; border-radius: 8px;
   border: 1px solid var(--warn); border-left-width: 4px; background: color-mix(in srgb, var(--warn) 10%, transparent); }
 .in-callout b { color: var(--warn); }
+.in-steps { margin: 6px 0 10px; }
+.in-steps li { margin: 8px 0; }
+.cmd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.cmd code {
+  flex: 1 1 320px; display: block; white-space: pre-wrap; word-break: break-all; padding: 10px 12px; font-size: 13px;
+  border: 1px solid var(--brand-accent); border-left-width: 4px; border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 8%, var(--field));
+}
+.in-alt { margin-top: 12px; }
+.in-alt > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.in-alt.plain > summary, .in-alt.plain .in-alt-hint { display: none; }
+.in-alt-hint { margin: 6px 0 0; }

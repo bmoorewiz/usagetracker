@@ -3,14 +3,26 @@
     <div class="intake">
       <div class="card">
         <h2>1. Get the usage from the customer</h2>
-        <p class="hint">An admin pastes this prompt into their analytics chat (or, for AWS Bedrock, runs the query in their
-          console) and sends you the answer. Use one per provider.</p>
+        <p class="hint">An admin pastes this prompt into their analytics chat (or, for AWS Bedrock, runs one command in
+          AWS CloudShell) and sends you the answer. Use one per provider.</p>
         <div class="seg" id="in-pick" role="radiogroup" aria-label="Analytics chat"></div>
         <p class="notes" id="in-where"></p>
+        <ol class="steps in-steps" id="in-run" hidden>
+          <li>Open <span id="in-run-where"></span>.</li>
+          <li>Paste this command and press Enter:
+            <div class="cmd"><code id="in-cmd"></code><button class="btn primary" id="in-cmd-copy" type="button">Copy command</button></div>
+            <span class="notes" id="in-cmd-copied" aria-live="polite"></span></li>
+          <li>Download the CSV file(s) it names (Actions &gt; Download file) and add them in step 2.</li>
+        </ol>
         <p class="in-callout" id="in-note" role="note" hidden></p>
-        <pre class="prompt" id="in-prompt" tabindex="0"></pre>
-        <button class="btn primary" id="in-copy" type="button">Copy prompt</button>
-        <span class="notes" id="in-copied" aria-live="polite"></span>
+        <details class="in-alt" id="in-alt" open>
+          <summary>Alternative: paste the script yourself</summary>
+          <p class="notes in-alt-hint">Save it as <code>bedrock_usage.py</code> in CloudShell and run <code>python3 bedrock_usage.py</code>.
+            Big pastes can get cut off there, so check that the file's last line is <code>main()</code>.</p>
+          <pre class="prompt" id="in-prompt" tabindex="0"></pre>
+          <button class="btn" id="in-copy" type="button">Copy prompt</button>
+          <span class="notes" id="in-copied" aria-live="polite"></span>
+        </details>
       </div>
 
       <div class="card" id="in-drop">

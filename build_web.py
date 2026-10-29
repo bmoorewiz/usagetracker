@@ -56,7 +56,10 @@ def prompts() -> list[dict]:
         if inc:
             text = (HERE / inc.group(1)).read_text(encoding="utf-8")
         run = where.lower().startswith("run in ")
-        found.append({"name": name.strip(), "where": where[7:] if run else where, "run": run, "text": text.strip(), "note": note})
+        # A ```bash block before the script is the one-line command the page leads with.
+        cmd = re.search(r"```bash\n(.*?)```", before, re.S)
+        found.append({"name": name.strip(), "where": where[7:] if run else where, "run": run, "text": text.strip(),
+                      "note": note, "command": cmd.group(1).strip() if cmd else ""})
     if not found:
         raise SystemExit("No prompts found in ANALYTICS_PROMPTS.md (expected '## Name (...)' headings with ```text blocks).")
     return found

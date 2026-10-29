@@ -3,10 +3,11 @@
     <div class="intake">
       <div class="card">
         <h2>1. Get the usage from the customer</h2>
-        <p class="hint">An admin pastes this prompt into their analytics chat and sends you the answer.
-          Use one prompt per provider.</p>
+        <p class="hint">An admin pastes this prompt into their analytics chat (or, for AWS Bedrock, runs the query in their
+          console) and sends you the answer. Use one per provider.</p>
         <div class="seg" id="in-pick" role="radiogroup" aria-label="Analytics chat"></div>
         <p class="notes" id="in-where"></p>
+        <p class="in-callout" id="in-note" role="note" hidden></p>
         <pre class="prompt" id="in-prompt" tabindex="0"></pre>
         <button class="btn primary" id="in-copy" type="button">Copy prompt</button>
         <span class="notes" id="in-copied" aria-live="polite"></span>

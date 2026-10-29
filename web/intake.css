@@ -29,3 +29,6 @@ pre.prompt {
 .in-src .warn { color: var(--warn); }
 .in-src button { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
 .in-src button:hover { color: var(--text-primary); }
+.in-callout { font-size: 12px; line-height: 1.5; margin: 6px 0 8px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--warn); border-left-width: 4px; background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.in-callout b { color: var(--warn); }

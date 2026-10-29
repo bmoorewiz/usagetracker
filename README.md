@@ -178,11 +178,15 @@ Outputs (`--out DIR` changes the folder; `--open` opens the dashboard in your br
 | Anthropic API | `GET /v1/organizations/usage_report/messages` grouped by `api_key_id`, `model`, `workspace_id` | email of the user who **created** the API key | workspace |
 | Claude Code (`--claude-code`) | `GET /v1/organizations/usage_report/claude_code` | user's email (actor) | `claude-code` |
 | OpenAI | `GET /v1/organization/usage/completions` grouped by `user_id`, `api_key_id`, `model`, `project_id` | `user_id` → email, or else the API key owner | project |
+| AWS Bedrock | `bedrock_usage.py`, run by the customer in AWS CloudShell; load its CSVs with `--csv` or on the web page's Data tab | the caller's IAM identity (only if invocation logging is on; otherwise unattributed) | AWS Region |
 | Anything else | `--csv` | the `user` column | the `tenant` column |
 
 Caveats:
 - Anthropic API usage is tracked per key, not per person. A shared key or service key shows up as
   its creator (or as `key:<name>`). If you want true per-person numbers, give each person their own key.
+- AWS Bedrock has no analytics chat or usage API. `bedrock_usage.py` reads CloudWatch's per-model daily token
+  metrics (always on, kept 15 months) and, where model invocation logging is on, the per-user invocation logs.
+  See [ANALYTICS_PROMPTS.md](ANALYTICS_PROMPTS.md). It hasn't been run against a real customer account yet.
 - Google Gemini/Vertex has no per-user token usage API. Export from Cloud Billing → BigQuery (or the
   `aiplatform.googleapis.com/publisher/online_serving/token_count` metric) into the CSV format below.
 

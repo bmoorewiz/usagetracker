@@ -89,6 +89,36 @@ Rules for all three tables:
 - Output only the three CSV tables and any # notes, in this order, each starting with its header line.
 ```
 
+## AWS Bedrock (run in AWS CloudShell, the terminal icon at the top of the AWS console: paste the script into a file with `cat > bedrock_usage.py`, press Ctrl-D, run `python3 bedrock_usage.py`, then Actions > Download file for each CSV it names)
+
+> Tested only against simulated AWS responses, not a customer account yet. Check the first few Bedrock
+> customers' numbers against their Bedrock bill. Per-model daily totals always work (CloudWatch keeps
+> them for 15 months with no setup). Per-user figures need model invocation logging to CloudWatch Logs
+> (Bedrock console > Settings), which is off by default and only covers usage since it was turned on,
+> so ask new customers to turn it on now. Cache-token fields aren't in AWS's documented log format;
+> they count when present. A shared IAM role shows as one user.
+
+Bedrock has no analytics chat, so this is a script rather than a prompt. It needs read-only access
+(the AWS managed `ReadOnlyAccess` policy is enough), reads only metrics and logs, and costs well under a
+dollar in CloudWatch API charges. It is the file `bedrock_usage.py` in this folder, inlined into the web
+page by `build_web.py`. It writes:
+
+- `bedrock-daily.csv`: tokens per day, model and region from CloudWatch's `AWS/Bedrock` metrics
+  (`InputTokenCount` + `CacheWriteInputTokenCount` as input, `OutputTokenCount`, `CacheReadInputTokenCount`,
+  `Invocations`). This is all the on-prem sizing needs. The user column is empty, so the Usage tab shows one
+  "(unattributed)" user.
+- `bedrock-users.csv`: the same per IAM identity, from a Logs Insights query over the invocation logs,
+  only where logging is on. Calls through the `bedrock-mantle` endpoint aren't logged.
+
+Drop both files on the Data tab. It keeps the per-user file when it covers the whole period and the daily
+file otherwise, so nothing is counted twice. The desktop app doesn't do that: give it one file or the other.
+The tenant is the AWS Region; model ids such as `us.anthropic.claude-sonnet-...` are priced from the
+Anthropic list, while Amazon's own models get the fallback price until they're added to `catalog.py`.
+
+```text
+@include bedrock_usage.py
+```
+
 ---
 
 ## Checking the answer

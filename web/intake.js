@@ -90,8 +90,10 @@ function readHeader(names) {
   return map;
 }
 
-const providerFromModel = (m) => /^claude/i.test(m) ? "claude enterprise" : /^(gpt|o\d|codex|chatgpt)/i.test(m) ? "chatgpt enterprise"
-  : /^gemini/i.test(m) ? "gemini" : "";
+// Bedrock ids are "<vendor>.<model>", optionally behind a cross-region prefix (us., global., ...) or an inference-profile ARN.
+const BEDROCK_ID = /^(arn:aws[\w-]*:bedrock:|((us|eu|apac|global|us-gov|jp|au|ca)\.)?(anthropic|amazon|meta|mistral|cohere|ai21|deepseek|openai|qwen|writer|moonshot|minimax|google|nvidia)\.)/i;
+const providerFromModel = (m) => BEDROCK_ID.test(m) ? "aws bedrock" : /^claude/i.test(m) ? "claude enterprise"
+  : /^(gpt|o\d|codex|chatgpt)/i.test(m) ? "chatgpt enterprise" : /^gemini/i.test(m) ? "gemini" : "";
 
 /**
  * Same rules as fetch_usage.load_csv, plus markdown tables, the column names of the providers' own CSV
@@ -168,6 +170,11 @@ function pickDaily(rows, modelMix) {
       const id = r._table ?? "app";
       if (!tables.has(id)) tables.set(id, { rows: [], dates: new Set(), grain: r._grain ?? 7 });
       tables.get(id).rows.push(r); tables.get(id).dates.add(r.date);
+    }
+    // A column that is present but empty (e.g. "user" in a per-model export) doesn't make the table finer.
+    for (const t of tables.values()) {
+      if (!t.rows.some((r) => r.user !== "(unattributed)")) t.grain &= ~4;
+      if (!t.rows.some((r) => r.model !== "unknown")) t.grain &= ~2;
     }
     const ranked = [...tables.values()].sort((a, b) => b.dates.size - a.dates.size || bits(b.grain) - bits(a.grain));
     const best = ranked[0];
@@ -448,7 +455,10 @@ function renderPrompt() {
   const p = WEB.prompts[intake.prompt];
   $("in-pick").innerHTML = WEB.prompts.map((q, i) =>
     `<button type="button" role="radio" aria-checked="${i === intake.prompt}" data-i="${i}">${esc(q.name)}</button>`).join("");
-  $("in-where").textContent = `Paste into: ${p.where}`;
+  $("in-where").textContent = `${p.run ? "Run in" : "Paste into"}: ${p.where}`;
+  $("in-copy").textContent = p.run ? "Copy script" : "Copy prompt";
+  $("in-note").hidden = !p.note;
+  $("in-note").innerHTML = p.note ? `<b>Check before relying on this:</b> ${esc(p.note)}` : "";
   $("in-prompt").textContent = p.text;
   $("in-copied").textContent = "";
 }

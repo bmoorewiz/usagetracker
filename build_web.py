@@ -43,12 +43,20 @@ HEAD = f"""<meta http-equiv="Content-Security-Policy" content="{CSP}">
 
 
 def prompts() -> list[dict]:
-    """The ```text blocks in ANALYTICS_PROMPTS.md, named by their "## Name (where to paste)" heading."""
+    """The ```text blocks in ANALYTICS_PROMPTS.md, named by their "## Name (where to paste)" heading.
+    A "> " blockquote before the block becomes a callout shown above that prompt."""
     md = (HERE / "ANALYTICS_PROMPTS.md").read_text(encoding="utf-8")
     found = []
-    for heading, text in re.findall(r"^## (.+?)\n.*?```text\n(.*?)```", md, re.S | re.M):
+    for heading, before, text in re.findall(r"^## (.+?)\n(.*?)```text\n(.*?)```", md, re.S | re.M):
         name, _, where = heading.partition(" (")
-        found.append({"name": name.strip(), "where": where.rstrip(")").strip(), "text": text.strip()})
+        where = where.rstrip(")").strip()
+        note = " ".join(ln[2:].strip() for ln in before.splitlines() if ln.startswith("> "))
+        # "@include file" pulls in a script kept as a real file; "run in ..." headings are scripts, not chat prompts.
+        inc = re.fullmatch(r"@include (\S+)", text.strip())
+        if inc:
+            text = (HERE / inc.group(1)).read_text(encoding="utf-8")
+        run = where.lower().startswith("run in ")
+        found.append({"name": name.strip(), "where": where[7:] if run else where, "run": run, "text": text.strip(), "note": note})
     if not found:
         raise SystemExit("No prompts found in ANALYTICS_PROMPTS.md (expected '## Name (...)' headings with ```text blocks).")
     return found

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Export Amazon Bedrock token usage for the last 30 days, for the Frontier Usage report.
+# Export Amazon Bedrock token usage for the last 30 days (including today so far), for the Frontier Usage report.
 #
 # Run it in AWS CloudShell (the terminal icon at the top of the AWS console; nothing to install):
 #   1. Paste this whole script into a file:   cat > bedrock_usage.py   (paste, then Ctrl-D)
@@ -25,8 +25,8 @@ from datetime import datetime, timedelta, timezone
 import boto3
 
 DAYS = 30
-END = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)  # last complete day
-START = END - timedelta(days=DAYS)
+END = datetime.now(timezone.utc).replace(microsecond=0)
+START = END.replace(hour=0, minute=0, second=0) - timedelta(days=DAYS - 1)  # 30 UTC days including today so far
 PROVIDER = "aws bedrock"
 HEADER = ["date", "provider", "user", "model", "tenant", "input_tokens", "output_tokens", "cached_tokens", "requests"]
 # CloudWatch publishes these per model. InputTokenCount excludes cache reads and writes, so the report's
@@ -162,7 +162,7 @@ def why(e):
 
 
 def main():
-    log(f"Bedrock usage {START:%Y-%m-%d} to {(END - timedelta(days=1)):%Y-%m-%d} (UTC)")
+    log(f"Bedrock usage {START:%Y-%m-%d} to {END:%Y-%m-%d %H:%M} UTC (metrics can lag a few minutes)")
     daily, users, logged, denied, checked = [], [], [], [], []
     for region in regions():
         try:

@@ -98,7 +98,8 @@ Rules for all three tables:
 > so ask new customers to turn it on now. Cache-token fields aren't in AWS's documented log format;
 > they count when present. A shared IAM role shows as one user.
 
-Bedrock has no analytics chat, so this is a script rather than a prompt. It needs read-only access
+Bedrock has no analytics chat, so this is a script rather than a prompt. It checks the four US commercial
+regions unless others are named on the command line. It needs read-only access
 (the AWS managed `ReadOnlyAccess` policy is enough), reads only metrics and logs, and costs well under a
 dollar in CloudWatch API charges. It is the file `bedrock_usage.py` in this folder; `build_web.py` inlines it into the web page and copies it
 to `dist/`, so the hosted site serves it at `/bedrock_usage.py` for the `curl` above. It writes:

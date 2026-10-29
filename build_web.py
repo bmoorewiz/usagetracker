@@ -82,6 +82,8 @@ def build() -> Path:
     OUT.write_text(html, encoding="utf-8")
     DIST.mkdir(exist_ok=True)
     (DIST / "aisizing.html").write_text(html, encoding="utf-8")
+    # Served next to the page so a customer can curl it into CloudShell instead of pasting 200 lines.
+    (DIST / "bedrock_usage.py").write_text((HERE / "bedrock_usage.py").read_text(encoding="utf-8"), encoding="utf-8")
     return OUT
 
 

@@ -89,7 +89,7 @@ Rules for all three tables:
 - Output only the three CSV tables and any # notes, in this order, each starting with its header line.
 ```
 
-## AWS Bedrock (run in AWS CloudShell, the terminal icon at the top of the AWS console: paste the script into a file with `cat > bedrock_usage.py`, press Ctrl-D, run `python3 bedrock_usage.py`, then Actions > Download file for each CSV it names)
+## AWS Bedrock (run in AWS CloudShell, the terminal icon at the top of the AWS console: `curl -sO https://customer-sizer.ctglabs.ai/bedrock_usage.py && python3 bedrock_usage.py`, then Actions > Download file for each CSV it names. Pasting the script into a file also works, but CloudShell cuts off big pastes, so check that its last line is `main()`)
 
 > Tested only against simulated AWS responses, not a customer account yet. Check the first few Bedrock
 > customers' numbers against their Bedrock bill. Per-model daily totals always work (CloudWatch keeps
@@ -100,8 +100,8 @@ Rules for all three tables:
 
 Bedrock has no analytics chat, so this is a script rather than a prompt. It needs read-only access
 (the AWS managed `ReadOnlyAccess` policy is enough), reads only metrics and logs, and costs well under a
-dollar in CloudWatch API charges. It is the file `bedrock_usage.py` in this folder, inlined into the web
-page by `build_web.py`. It writes:
+dollar in CloudWatch API charges. It is the file `bedrock_usage.py` in this folder; `build_web.py` inlines it into the web page and copies it
+to `dist/`, so the hosted site serves it at `/bedrock_usage.py` for the `curl` above. It writes:
 
 - `bedrock-daily.csv`: tokens per day, model and region from CloudWatch's `AWS/Bedrock` metrics
   (`InputTokenCount` + `CacheWriteInputTokenCount` as input, `OutputTokenCount`, `CacheReadInputTokenCount`,

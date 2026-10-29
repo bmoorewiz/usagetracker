@@ -2,8 +2,9 @@
 # Export Amazon Bedrock token usage for the last 30 days (including today so far), for the Frontier Usage report.
 #
 # Run it in AWS CloudShell (the terminal icon at the top of the AWS console; nothing to install):
-#   1. Paste this whole script into a file:   cat > bedrock_usage.py   (paste, then Ctrl-D)
-#   2. Run it:                                python3 bedrock_usage.py
+#   1. Get the script:  curl -sO https://customer-sizer.ctglabs.ai/bedrock_usage.py
+#      (or paste it into a file; big pastes get cut off in CloudShell, so check the last line is "main()")
+#   2. Run it:          python3 bedrock_usage.py
 #      If your role only has access to some regions, name them:   python3 bedrock_usage.py us-east-1 us-west-2
 #   3. Download the CSVs: CloudShell > Actions > Download file > bedrock-daily.csv (and bedrock-users.csv)
 # Needs read-only access (the AWS managed ReadOnlyAccess policy is enough). It only reads metrics

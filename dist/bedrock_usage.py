@@ -184,7 +184,11 @@ def main():
                 log(f"  {region}: skipped ({why(e)})")
             continue
         checked.append(region)
-        got = daily_rows(region, ids)
+        try:
+            got = daily_rows(region, ids)
+        except Exception as e:  # noqa: BLE001 - e.g. ListMetrics allowed but GetMetricData denied
+            log(f"  {region}: couldn't read metrics ({why(e)})")
+            continue
         daily += got
         if got:
             log(f"  {region}: {len(got)} daily rows across {len({r[3] for r in got})} models")
@@ -205,7 +209,8 @@ def main():
         log(f"  Access denied in {len(denied)} region(s): {', '.join(denied)}. If your role is limited to certain "
             f"regions, run:  python3 bedrock_usage.py {' '.join(checked) or '<region>'}")
     if not daily and not users:
-        sys.exit("No Bedrock usage found in the last 30 days in " + (", ".join(checked) if checked else "any readable region")
+        sys.exit("No CSV written: no Bedrock usage found in the last 30 days in "
+                 + (", ".join(checked) if checked else "any readable region")
                  + ".\nTo confirm: CloudWatch console > Metrics > All metrics > AWS/Bedrock, in the region the customer uses.")
     write("bedrock-daily.csv", daily)
     log(f"Wrote bedrock-daily.csv: {len(daily)} rows, {len({r[0] for r in daily})} days with usage.")

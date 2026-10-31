@@ -124,7 +124,7 @@ def daily_rows(region, ids):
         rows.append([day, PROVIDER, "", mid or "unknown", region,
                      int(t.get("InputTokenCount", 0) + t.get("CacheWriteInputTokenCount", 0)),
                      int(t.get("OutputTokenCount", 0)), int(t.get("CacheReadInputTokenCount", 0)), int(t.get("Invocations", 0))])
-    return rows
+    return with_tokens(rows)
 
 
 def short_user(arn):
@@ -174,10 +174,20 @@ def user_rows(region):
     return merged(rows)
 
 
+SKIPPED = [0]  # rows with requests but no tokens: failed calls (model not enabled, throttled, bad request)
+
+
+def with_tokens(rows):
+    """Drop rows that moved no tokens; they're failed invocations and don't bear on sizing or spend."""
+    keep = [r for r in rows if r[5] or r[6] or r[7]]
+    SKIPPED[0] += len(rows) - len(keep)
+    return keep
+
+
 def merged(rows):
     """Sum rows that share day, user, model and tenant (e.g. a model logged both as an id and as an ARN)."""
     out = {}
-    for r in rows:
+    for r in with_tokens(rows):
         k = tuple(r[:5])
         if k in out:
             out[k] = r[:5] + [a + b for a, b in zip(out[k][5:], r[5:])]
@@ -321,6 +331,8 @@ def main():
         sys.exit("No CSV written: no Bedrock usage found in the last 30 days in "
                  + (", ".join(checked) if checked else "any readable region")
                  + ".\nTo confirm: CloudWatch console > Metrics > All metrics > AWS/Bedrock, in the region the customer uses.")
+    if SKIPPED[0]:
+        log(f"  Skipped {SKIPPED[0]} row(s) with requests but no tokens: failed calls (e.g. a model that isn't enabled).")
     write("bedrock-daily.csv", daily)
     log(f"Wrote bedrock-daily.csv: {len(daily)} rows, {len({r[0] for r in daily})} days with usage.")
     if users:

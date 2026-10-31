@@ -565,7 +565,10 @@ function dedupe(items, key) {
 
 function buildReport() {
   const demo = intake.sources.length > 0 && intake.sources.every((s) => s.demo);
-  const daily = dedupe(intake.sources.flatMap((s) => s.rows), (r) => [r.date, r.provider, r.tenant, r.user, r.model].join("\u0000"));
+  // Only an exact repeat (same key and the same numbers) is a duplicate; two rows that share a key but differ
+  // (e.g. a Bedrock log that names the model two ways) are both real and get summed.
+  const daily = dedupe(intake.sources.flatMap((s) => s.rows), (r) => [r.date, r.provider, r.tenant, r.user, r.model,
+    r.input_tokens, r.output_tokens, r.cached_tokens, r.requests].join("\u0000"));
   const totals = dedupe(intake.sources.flatMap((s) => s.userTotals || []), (u) => u.provider + "\u0000" + u.user);
   const mix = dedupe(intake.sources.flatMap((s) => s.modelMix || []), (m) => [m.provider, m.tenant, m.model].join("\u0000"));
   const picked = pickDaily(daily.items, mix.items);

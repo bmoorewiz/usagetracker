@@ -171,7 +171,19 @@ def user_rows(region):
                      int(float(f.get("cached_tokens") or 0)), int(float(f.get("requests") or 0))])
     if len(rows) >= 10000:
         log(f"  {region}: the log query hit its 10,000-row limit, so per-user rows are incomplete here.")
-    return rows
+    return merged(rows)
+
+
+def merged(rows):
+    """Sum rows that share day, user, model and tenant (e.g. a model logged both as an id and as an ARN)."""
+    out = {}
+    for r in rows:
+        k = tuple(r[:5])
+        if k in out:
+            out[k] = r[:5] + [a + b for a, b in zip(out[k][5:], r[5:])]
+        else:
+            out[k] = list(r)
+    return list(out.values())
 
 
 OWNER_TAGS = ("owner", "email", "user", "createdby", "created_by", "name")
@@ -182,8 +194,8 @@ def person_from_identity(ui, sso):
     """A CloudTrail userIdentity as a person: the Identity Center user it was on behalf of, the IAM user
     name, or Role/session."""
     behalf = (ui.get("onBehalfOf") or {}).get("userId")
-    if behalf:
-        return sso(behalf) or f"sso:{behalf}"
+    if behalf and sso(behalf):
+        return sso(behalf)  # else fall through to Role/session, the same form the person's console use logs as
     if ui.get("type") == "IAMUser":
         return ui.get("userName") or short_user(ui.get("arn", ""))
     if ui.get("type") == "Root":
@@ -319,6 +331,7 @@ def main():
                 log(n)
             for r in users:
                 r[2] = who.get(r[2], r[2])
+            users[:] = merged(users)
         keys = sorted({r[2] for r in users if r[2].startswith("BedrockAPIKey-")})
         if keys:
             log(f"  Couldn't tie {', '.join(keys)} to a person: tag the IAM user with owner=<email> (IAM console > Users), "

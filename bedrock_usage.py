@@ -132,6 +132,14 @@ def short_user(arn):
     return tail
 
 
+def short_model(mid):
+    """Logs sometimes record the model as an ARN (arn:aws:bedrock:us-east-2:123:inference-profile/us.anthropic...);
+    use the id after the slash so it matches CloudWatch's ModelId and gets priced."""
+    if mid.startswith("arn:") and "/" in mid:
+        return mid.split("/", 1)[1]
+    return mid
+
+
 def user_rows(region):
     """Per-identity rows from invocation logs, or None if logging to CloudWatch Logs isn't on here."""
     cfg = boto3.client("bedrock", region_name=region).get_model_invocation_logging_configuration().get("loggingConfig") or {}
@@ -154,7 +162,7 @@ def user_rows(region):
         f = {c["field"]: c["value"] for c in fields}
         if not f.get("day"):
             continue
-        rows.append([f["day"][:10], PROVIDER, short_user(f.get("user", "")), f.get("model", ""), f.get("tenant") or region,
+        rows.append([f["day"][:10], PROVIDER, short_user(f.get("user", "")), short_model(f.get("model", "")), f.get("tenant") or region,
                      int(float(f.get("input_tokens") or 0)), int(float(f.get("output_tokens") or 0)),
                      int(float(f.get("cached_tokens") or 0)), int(float(f.get("requests") or 0))])
     if len(rows) >= 10000:

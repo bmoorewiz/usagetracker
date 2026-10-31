@@ -50,10 +50,16 @@ const userName = (u) => {
   const tail = u.slice(u.lastIndexOf(":") + 1);
   return tail.replace(/^(assumed-role|user|role)\//, "");
 };
+// A Bedrock model ARN (arn:aws:bedrock:…:inference-profile/us.anthropic.…) reads as the id after the slash.
+const modelName = (m) => {
+  m = (m || "").trim();
+  if (!m) return "unknown";
+  return /^arn:aws[\w-]*:bedrock:/i.test(m) && m.includes("/") ? m.slice(m.indexOf("/") + 1) : m;
+};
 // input_tokens includes cache writes; cache_write_5m/1h say how much of it was, for pricing.
 const mkRow = (date, provider, user, model, inp, out, cached, requests, tenant, write5m = 0, write1h = 0) => ({
   date, provider: (provider || "").trim() || "unknown", tenant: tenantName(tenant),
-  user: userName(user), model: (model || "").trim() || "unknown",
+  user: userName(user), model: modelName(model),
   input_tokens: Math.round(inp), output_tokens: Math.round(out), cached_tokens: Math.round(cached),
   requests: Math.round(requests), cache_write_5m: Math.round(write5m), cache_write_1h: Math.round(write1h),
 });

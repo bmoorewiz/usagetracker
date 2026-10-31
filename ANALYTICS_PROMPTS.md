@@ -134,7 +134,10 @@ to `dist/`, so the hosted site serves it at `/bedrock_usage.py` for the `curl` a
 Drop both files on the Data tab. It uses the per-user rows on the days they cover and the daily rows for the
 rest (usage the logs miss on a day stays "(unattributed)"), so nothing is counted twice. The desktop app
 doesn't do that: give it one file or the other. Identities are shortened to `Role/session` or the IAM user
-name; a service role such as an AgentCore harness shows up as that role, not as a person.
+name; a service role such as an AgentCore harness shows up as that role, not as a person. A long-term Bedrock
+API key is its own IAM user, `BedrockAPIKey-<suffix>`, so usage through it is logged under the key, not the
+person who made it; console use under SSO shows as `Role/<Identity Center user id>`. Ask the customer who owns
+each key and role, or have them tag keys with the owner's name, to turn those into people.
 The tenant is the AWS Region; model ids such as `us.anthropic.claude-sonnet-...` are priced from the
 Anthropic list, while Amazon's own models get the fallback price until they're added to `catalog.py`.
 

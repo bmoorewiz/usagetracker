@@ -42,10 +42,18 @@ const PRODUCT_NAMES = { chat: "Claude chat", claude_code: "Claude Code", cowork:
   "claude in chrome": "Claude in Chrome", "claude design": "Claude Design", "claude code": "Claude Code" };
 const tenantName = (t) => { const k = (t || "").trim(); return PRODUCT_NAMES[k.toLowerCase()] || k; };
 
+// An AWS identity ARN (older bedrock-users.csv files) reads as Role/session or the IAM user name.
+const userName = (u) => {
+  u = (u || "").trim();
+  if (!u) return "(unattributed)";
+  if (!/^arn:aws/i.test(u)) return u;
+  const tail = u.slice(u.lastIndexOf(":") + 1);
+  return tail.replace(/^(assumed-role|user|role)\//, "");
+};
 // input_tokens includes cache writes; cache_write_5m/1h say how much of it was, for pricing.
 const mkRow = (date, provider, user, model, inp, out, cached, requests, tenant, write5m = 0, write1h = 0) => ({
   date, provider: (provider || "").trim() || "unknown", tenant: tenantName(tenant),
-  user: (user || "").trim() || "(unattributed)", model: (model || "").trim() || "unknown",
+  user: userName(user), model: (model || "").trim() || "unknown",
   input_tokens: Math.round(inp), output_tokens: Math.round(out), cached_tokens: Math.round(cached),
   requests: Math.round(requests), cache_write_5m: Math.round(write5m), cache_write_1h: Math.round(write1h),
 });
@@ -161,6 +169,9 @@ function parseUsage(text, fallbackProvider) {
  * days (sizing needs real daily peaks), then the most detail. Every other table that has models feeds
  * the model mix used to split the kept rows by model.
  */
+const tokOf = (r) => r.input_tokens + r.output_tokens + r.cached_tokens;
+const FIELDS = ["input_tokens", "output_tokens", "cached_tokens", "requests", "cache_write_5m", "cache_write_1h"];
+
 function pickDaily(rows, modelMix) {
   const notes = [], keep = [], mix = [...modelMix];
   const bits = (g) => (g & 1) + ((g >> 1) & 1) + ((g >> 2) & 1);
@@ -178,7 +189,26 @@ function pickDaily(rows, modelMix) {
     }
     const ranked = [...tables.values()].sort((a, b) => b.dates.size - a.dates.size || bits(b.grain) - bits(a.grain));
     const best = ranked[0];
-    keep.push(...best.rows);
+    // A per-user table that covers fewer days (e.g. Bedrock invocation logs turned on mid-window) replaces the
+    // daily rows on the days it has; any usage the daily table has above it stays as "(unattributed)".
+    const finer = (best.grain & 4) ? null : ranked.slice(1).find((t) => t.grain === (best.grain | 4));
+    let spliced = 0;
+    if (finer) {
+      const key = (r) => `${r.date}|${r.model}|${r.tenant}`;
+      const fine = new Map();
+      for (const r of finer.rows) { if (!fine.has(key(r))) fine.set(key(r), []); fine.get(key(r)).push(r); }
+      for (const r of best.rows) {
+        const sub = fine.get(key(r));
+        if (!sub) { keep.push(r); continue; }
+        fine.delete(key(r));
+        keep.push(...sub);
+        const rest = { ...r };
+        for (const k of FIELDS) rest[k] = Math.max(0, (r[k] || 0) - sub.reduce((a, x) => a + (x[k] || 0), 0));
+        if (tokOf(rest) || rest.requests) keep.push(rest);
+      }
+      for (const sub of fine.values()) keep.push(...sub);
+      spliced = finer.dates.size;
+    } else keep.push(...best.rows);
     if (ranked.length === 1) continue;
     if (!(best.grain & 2)) {
       for (const t of ranked.slice(1).filter((t) => t.grain & 2)) {
@@ -188,13 +218,11 @@ function pickDaily(rows, modelMix) {
       }
     }
     notes.push(`${prov}: ${ranked.length} tables cover the same usage. Used the one with ${best.dates.size} days for the totals` +
+      (spliced ? `, with the per-user table on the ${spliced} day${spliced === 1 ? "" : "s"} it covers` : "") +
       (best.grain & 2 ? "" : " and the others for the model mix") + ", so nothing is counted twice.");
   }
   return { rows: keep.map(({ _grain, _table, ...r }) => r), modelMix: mix, notes };
 }
-
-const tokOf = (r) => r.input_tokens + r.output_tokens + r.cached_tokens;
-const FIELDS = ["input_tokens", "output_tokens", "cached_tokens", "requests", "cache_write_5m", "cache_write_1h"];
 
 /** Split each row by weights [[value, share]], setting `field` to value. Shares sum to <= 1. */
 function splitRow(r, field, shares) {

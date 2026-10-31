@@ -91,8 +91,8 @@ Rules for all three tables:
 
 ## AWS Bedrock (run in AWS CloudShell, the terminal icon at the top of the AWS console)
 
-> Tested only against simulated AWS responses, not a customer account yet. Check the first few Bedrock
-> customers' numbers against their Bedrock bill. Per-model daily totals always work (CloudWatch keeps
+> Run against one real account so far (one region, a few days of playground use), not a customer's full
+> month. Check the first few Bedrock customers' numbers against their Bedrock bill. Per-model daily totals always work (CloudWatch keeps
 > them for 15 months with no setup). Cache-token fields aren't in AWS's documented log format; they
 > count when present. A shared IAM role shows as one user.
 
@@ -131,8 +131,10 @@ to `dist/`, so the hosted site serves it at `/bedrock_usage.py` for the `curl` a
 - `bedrock-users.csv`: the same per IAM identity, from a Logs Insights query over the invocation logs,
   only where logging is on. Calls through the `bedrock-mantle` endpoint aren't logged.
 
-Drop both files on the Data tab. It keeps the per-user file when it covers the whole period and the daily
-file otherwise, so nothing is counted twice. The desktop app doesn't do that: give it one file or the other.
+Drop both files on the Data tab. It uses the per-user rows on the days they cover and the daily rows for the
+rest (usage the logs miss on a day stays "(unattributed)"), so nothing is counted twice. The desktop app
+doesn't do that: give it one file or the other. Identities are shortened to `Role/session` or the IAM user
+name; a service role such as an AgentCore harness shows up as that role, not as a person.
 The tenant is the AWS Region; model ids such as `us.anthropic.claude-sonnet-...` are priced from the
 Anthropic list, while Amazon's own models get the fallback price until they're added to `catalog.py`.
 

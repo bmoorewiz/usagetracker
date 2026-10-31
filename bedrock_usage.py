@@ -16,8 +16,8 @@
 #   bedrock-users.csv  tokens per day, IAM identity, model and region from model invocation logs.
 #                      Only if logging to CloudWatch Logs is turned on (Bedrock console > Settings);
 #                      it's off by default and only covers usage since it was turned on.
-# Drop both files on the report's Data tab; it uses the per-user file when it covers the whole
-# period and the daily file otherwise, so nothing is counted twice.
+# Drop both files on the report's Data tab; it uses the per-user rows on the days they cover and
+# the daily rows for the rest, so nothing is counted twice.
 import csv
 import sys
 import time
@@ -123,6 +123,15 @@ def daily_rows(region, ids):
     return rows
 
 
+def short_user(arn):
+    """A readable identity: arn:aws:sts::123:assumed-role/Role/session -> Role/session; iam::123:user/jane -> jane."""
+    tail = arn.split(":")[-1] if arn.startswith("arn:") else arn
+    for prefix in ("assumed-role/", "user/", "role/"):
+        if tail.startswith(prefix):
+            return tail[len(prefix):]
+    return tail
+
+
 def user_rows(region):
     """Per-identity rows from invocation logs, or None if logging to CloudWatch Logs isn't on here."""
     cfg = boto3.client("bedrock", region_name=region).get_model_invocation_logging_configuration().get("loggingConfig") or {}
@@ -145,7 +154,7 @@ def user_rows(region):
         f = {c["field"]: c["value"] for c in fields}
         if not f.get("day"):
             continue
-        rows.append([f["day"][:10], PROVIDER, f.get("user", ""), f.get("model", ""), f.get("tenant") or region,
+        rows.append([f["day"][:10], PROVIDER, short_user(f.get("user", "")), f.get("model", ""), f.get("tenant") or region,
                      int(float(f.get("input_tokens") or 0)), int(float(f.get("output_tokens") or 0)),
                      int(float(f.get("cached_tokens") or 0)), int(float(f.get("requests") or 0))])
     if len(rows) >= 10000:
@@ -215,7 +224,7 @@ def main():
         write("bedrock-users.csv", users)
         days = {r[0] for r in users}
         log(f"Wrote bedrock-users.csv: {len(users)} rows, {len({r[2] for r in users})} identities, {len(days)} days "
-            f"(logging is on in {', '.join(logged)}; the report uses this file only if it covers the whole period).")
+            f"(logging is on in {', '.join(logged)}; the report uses these rows on the days they cover).")
     else:
         log("No invocation logs found, so there's no per-user file. Turn on model invocation logging "
             "(Bedrock console > Settings) to get per-user figures from now on.")

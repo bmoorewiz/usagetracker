@@ -188,8 +188,8 @@ Caveats:
   metrics (always on, kept 15 months) and, where model invocation logging is on, the per-user invocation logs.
   Logging is off by default and only covers calls made after it's on, so `bedrock_enable_logging.py` (also run
   in CloudShell, needs admin rights) turns it on early: it creates an IAM role and a log group and logs metadata
-  only, no prompt or completion text. See [ANALYTICS_PROMPTS.md](ANALYTICS_PROMPTS.md). Neither script has been
-  run against a real customer account yet.
+  only, no prompt or completion text. See [ANALYTICS_PROMPTS.md](ANALYTICS_PROMPTS.md). Both scripts have run against one
+  real account, not yet a customer's full month.
 - Google Gemini/Vertex has no per-user token usage API. Export from Cloud Billing → BigQuery (or the
   `aiplatform.googleapis.com/publisher/online_serving/token_count` metric) into the CSV format below.
 

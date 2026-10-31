@@ -467,6 +467,15 @@ function renderPrompt() {
   $("in-cmd-copied").textContent = "";
   $("in-note").hidden = !p.note;
   $("in-note").innerHTML = p.note ? `<b>Check before relying on this:</b> ${esc(p.note)}` : "";
+  // Optional setup steps (e.g. turning on Bedrock invocation logging): a warning and their own command each.
+  const setup = p.setup || [];
+  $("in-setup").hidden = !setup.length;
+  $("in-setup").innerHTML = setup.map((s, i) => `<div class="in-setup">
+    <h3>${esc(s.title)}</h3>
+    ${s.note ? `<p class="in-callout" role="note">${esc(s.note)}</p>` : ""}
+    ${s.command ? `<div class="cmd"><code>${esc(s.command)}</code><button class="btn" type="button" data-setup="${i}">Copy command</button></div>
+    <span class="notes" aria-live="polite"></span>` : ""}
+  </div>`).join("");
   $("in-prompt").textContent = p.text;
   $("in-copied").textContent = "";
 }
@@ -563,6 +572,16 @@ $("in-cmd-copy").addEventListener("click", async () => {
     getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy");
   }
   $("in-cmd-copied").textContent = "Copied.";
+});
+$("in-setup").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-setup]"); if (!b) return;
+  const s = WEB.prompts[intake.prompt].setup[+b.dataset.setup];
+  try { await navigator.clipboard.writeText(s.command); }
+  catch {
+    const r = document.createRange(); r.selectNodeContents(b.parentElement.querySelector("code"));
+    getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy");
+  }
+  b.parentElement.nextElementSibling.textContent = "Copied.";
 });
 $("in-copy").addEventListener("click", async () => {
   const text = WEB.prompts[intake.prompt].text;

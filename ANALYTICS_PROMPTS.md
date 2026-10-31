@@ -93,10 +93,8 @@ Rules for all three tables:
 
 > Tested only against simulated AWS responses, not a customer account yet. Check the first few Bedrock
 > customers' numbers against their Bedrock bill. Per-model daily totals always work (CloudWatch keeps
-> them for 15 months with no setup). Per-user figures need model invocation logging to CloudWatch Logs
-> (Bedrock console > Settings), which is off by default and only covers usage since it was turned on,
-> so ask new customers to turn it on now. Cache-token fields aren't in AWS's documented log format;
-> they count when present. A shared IAM role shows as one user.
+> them for 15 months with no setup). Cache-token fields aren't in AWS's documented log format; they
+> count when present. A shared IAM role shows as one user.
 
 Bedrock has no analytics chat, so this is a script rather than a prompt. The customer runs this in CloudShell,
 then downloads the CSV(s) it names with Actions > Download file:
@@ -105,7 +103,22 @@ then downloads the CSV(s) it names with Actions > Download file:
 curl -sO https://customer-sizer.ctglabs.ai/bedrock_usage.py && python3 bedrock_usage.py
 ```
 
-Pasting the script into a file also works, but CloudShell cuts off big pastes, so check that the file's last
+### If per-user figures matter: turn on model invocation logging first
+
+> Per-user figures need Bedrock model invocation logging to CloudWatch Logs, which is off by default and only
+> covers calls made after it is turned on. Without it the report shows one "(unattributed)" user and the
+> per-model totals only. Ask the customer to run this in CloudShell now, then run the usage script after some
+> days of use. It changes the account: it creates an IAM role and a log group and switches logging on in each
+> US region (metadata only: identity, model and token counts; no prompt or completion text is stored). It needs
+> admin rights and does nothing where logging is already on.
+
+```bash
+curl -sO https://customer-sizer.ctglabs.ai/bedrock_enable_logging.py && python3 bedrock_enable_logging.py
+```
+
+The script is `bedrock_enable_logging.py` in this folder, served next to the page like the usage script.
+
+Pasting the usage script into a file also works, but CloudShell cuts off big pastes, so check that the file's last
 line is `main()`. It checks the four US commercial regions unless others are named on the command line. It needs read-only access
 (the AWS managed `ReadOnlyAccess` policy is enough), reads only metrics and logs, and costs well under a
 dollar in CloudWatch API charges. It is the file `bedrock_usage.py` in this folder; `build_web.py` inlines it into the web page and copies it

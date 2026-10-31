@@ -44,3 +44,7 @@ pre.prompt {
 .in-alt > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
 .in-alt.plain > summary, .in-alt.plain .in-alt-hint { display: none; }
 .in-alt-hint { margin: 6px 0 0; }
+.in-setup { margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.in-setup h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.in-setup .in-callout { margin: 0 0 8px; }
+.in-setup .cmd { margin-top: 0; }

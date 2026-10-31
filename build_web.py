@@ -44,22 +44,31 @@ HEAD = f"""<meta http-equiv="Content-Security-Policy" content="{CSP}">
 
 def prompts() -> list[dict]:
     """The ```text blocks in ANALYTICS_PROMPTS.md, named by their "## Name (where to paste)" heading.
-    A "> " blockquote before the block becomes a callout shown above that prompt."""
+    A "> " blockquote before the block becomes a callout shown above that prompt; "### " subsections become
+    optional setup steps (title, "> " warning, ```bash command)."""
     md = (HERE / "ANALYTICS_PROMPTS.md").read_text(encoding="utf-8")
     found = []
     for heading, before, text in re.findall(r"^## (.+?)\n(.*?)```text\n(.*?)```", md, re.S | re.M):
         name, _, where = heading.partition(" (")
         where = where.rstrip(")").strip()
-        note = " ".join(ln[2:].strip() for ln in before.splitlines() if ln.startswith("> "))
         # "@include file" pulls in a script kept as a real file; "run in ..." headings are scripts, not chat prompts.
         inc = re.fullmatch(r"@include (\S+)", text.strip())
         if inc:
             text = (HERE / inc.group(1)).read_text(encoding="utf-8")
         run = where.lower().startswith("run in ")
+        # "### Title" subsections before the script are optional setup steps: a "> " warning and a ```bash command each.
+        before, *subs = re.split(r"^### ", before, flags=re.M)
+        note = " ".join(ln[2:].strip() for ln in before.splitlines() if ln.startswith("> "))
+        setup = []
+        for sub in subs:
+            title, _, body = sub.partition("\n")
+            cmd = re.search(r"```bash\n(.*?)```", body, re.S)
+            setup.append({"title": title.strip(), "command": cmd.group(1).strip() if cmd else "",
+                          "note": " ".join(ln[2:].strip() for ln in body.splitlines() if ln.startswith("> "))})
         # A ```bash block before the script is the one-line command the page leads with.
         cmd = re.search(r"```bash\n(.*?)```", before, re.S)
         found.append({"name": name.strip(), "where": where[7:] if run else where, "run": run, "text": text.strip(),
-                      "note": note, "command": cmd.group(1).strip() if cmd else ""})
+                      "note": note, "command": cmd.group(1).strip() if cmd else "", "setup": setup})
     if not found:
         raise SystemExit("No prompts found in ANALYTICS_PROMPTS.md (expected '## Name (...)' headings with ```text blocks).")
     return found
@@ -86,7 +95,8 @@ def build() -> Path:
     DIST.mkdir(exist_ok=True)
     (DIST / "aisizing.html").write_text(html, encoding="utf-8")
     # Served next to the page so a customer can curl it into CloudShell instead of pasting 200 lines.
-    (DIST / "bedrock_usage.py").write_text((HERE / "bedrock_usage.py").read_text(encoding="utf-8"), encoding="utf-8")
+    for name in ("bedrock_usage.py", "bedrock_enable_logging.py"):
+        (DIST / name).write_text((HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
     return OUT
 
 

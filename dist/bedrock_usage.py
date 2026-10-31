@@ -7,18 +7,22 @@
 #   2. Run it:          python3 bedrock_usage.py
 #      That checks the four US regions. To check others, name them:   python3 bedrock_usage.py us-east-1 eu-west-1
 #   3. Download the CSVs: CloudShell > Actions > Download file > bedrock-daily.csv (and bedrock-users.csv)
-# Needs read-only access (the AWS managed ReadOnlyAccess policy is enough). It only reads metrics
-# and logs; nothing leaves the account except the CSV files you download.
+# Needs read-only access (the AWS managed ReadOnlyAccess policy is enough). It only reads metrics,
+# logs, IAM tags, CloudTrail event history and Identity Center user names; nothing leaves the account
+# except the CSV files you download.
 #
 # Writes:
 #   bedrock-daily.csv  tokens per day, model and region from CloudWatch metrics. Always available,
 #                      no setup needed; CloudWatch keeps daily figures for 15 months.
 #   bedrock-users.csv  tokens per day, IAM identity, model and region from model invocation logs.
 #                      Only if logging to CloudWatch Logs is turned on (Bedrock console > Settings);
-#                      it's off by default and only covers usage since it was turned on.
+#                      it's off by default and only covers usage since it was turned on. Bedrock API keys
+#                      (BedrockAPIKey-xxxx IAM users) are tied to the person who created them via CloudTrail,
+#                      or to an owner/email tag on the IAM user; SSO sessions to the Identity Center user.
 # Drop both files on the report's Data tab; it uses the per-user rows on the days they cover and
 # the daily rows for the rest, so nothing is counted twice.
 import csv
+import json
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -170,6 +174,85 @@ def user_rows(region):
     return rows
 
 
+OWNER_TAGS = ("owner", "email", "user", "createdby", "created_by", "name")
+UUIDISH = __import__("re").compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def person_from_identity(ui, sso):
+    """A CloudTrail userIdentity as a person: the Identity Center user it was on behalf of, the IAM user
+    name, or Role/session."""
+    behalf = (ui.get("onBehalfOf") or {}).get("userId")
+    if behalf:
+        return sso(behalf) or f"sso:{behalf}"
+    if ui.get("type") == "IAMUser":
+        return ui.get("userName") or short_user(ui.get("arn", ""))
+    if ui.get("type") == "Root":
+        return "root"
+    return short_user(ui.get("arn", ""))
+
+
+def sso_resolver():
+    """Identity Center user id -> user name (or email), where the account can read the identity store."""
+    cache = {}
+    try:
+        inst = boto3.client("sso-admin").list_instances().get("Instances") or []
+        store = inst[0]["IdentityStoreId"]
+        ids = boto3.client("identitystore")
+    except Exception:  # noqa: BLE001 - not the Identity Center account, or no permission
+        return lambda uid: None
+
+    def resolve(uid):
+        if uid not in cache:
+            try:
+                u = ids.describe_user(IdentityStoreId=store, UserId=uid)
+                emails = [e["Value"] for e in u.get("Emails", []) if e.get("Value")]
+                cache[uid] = emails[0] if emails else u.get("UserName")
+            except Exception:  # noqa: BLE001
+                cache[uid] = None
+        return cache[uid]
+    return resolve
+
+
+def people(rows):
+    """Map logged identities to people. BedrockAPIKey-* IAM users: an owner tag on the user, else the
+    CloudTrail CreateUser event's caller (90 days of event history). Role/<Identity Center id>: the user name
+    from the identity store. Returns {identity: person} and a log line per mapping."""
+    sso = sso_resolver()
+    found, notes = {}, []
+    iam = boto3.client("iam")
+    for ident in sorted({r[2] for r in rows}):
+        who = None
+        if ident.startswith("BedrockAPIKey-"):
+            try:
+                tags = {t["Key"].lower(): t["Value"] for t in iam.list_user_tags(UserName=ident)["Tags"]}
+                who = next((tags[k] for k in OWNER_TAGS if tags.get(k)), None)
+                how = "owner tag"
+            except Exception:  # noqa: BLE001
+                tags = {}
+            if not who:
+                for region in ("us-east-1", *regions()):
+                    try:
+                        ct = boto3.client("cloudtrail", region_name=region)
+                        ev = ct.lookup_events(LookupAttributes=[{"AttributeKey": "ResourceName", "AttributeValue": ident}],
+                                              MaxResults=50)["Events"]
+                    except Exception:  # noqa: BLE001
+                        continue
+                    for e in ev:
+                        if e.get("EventName") == "CreateUser":
+                            who = person_from_identity(json.loads(e["CloudTrailEvent"]).get("userIdentity") or {}, sso)
+                            how = f"created it on {e['EventTime']:%Y-%m-%d}"
+                            break
+                    if who:
+                        break
+        elif "/" in ident and UUIDISH.match(ident.rsplit("/", 1)[1]):
+            who = sso(ident.rsplit("/", 1)[1])
+            how = "Identity Center"
+        if who and who != ident:
+            found[ident] = who
+            notes.append(f"  {ident} -> {who} ({how})")
+    return found, notes
+
+
 def write(path, rows):
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -229,6 +312,17 @@ def main():
     write("bedrock-daily.csv", daily)
     log(f"Wrote bedrock-daily.csv: {len(daily)} rows, {len({r[0] for r in daily})} days with usage.")
     if users:
+        who, notes = people(users)
+        if notes:
+            log("Identities tied to people (keys: owner tag or who created them; SSO roles: Identity Center):")
+            for n in notes:
+                log(n)
+            for r in users:
+                r[2] = who.get(r[2], r[2])
+        keys = sorted({r[2] for r in users if r[2].startswith("BedrockAPIKey-")})
+        if keys:
+            log(f"  Couldn't tie {', '.join(keys)} to a person: tag the IAM user with owner=<email> (IAM console > Users), "
+                "or ask who made it. CloudTrail only shows creators for keys under 90 days old.")
         write("bedrock-users.csv", users)
         days = {r[0] for r in users}
         log(f"Wrote bedrock-users.csv: {len(users)} rows, {len({r[2] for r in users})} identities, {len(days)} days "

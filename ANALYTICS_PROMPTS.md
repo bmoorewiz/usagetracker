@@ -135,9 +135,12 @@ Drop both files on the Data tab. It uses the per-user rows on the days they cove
 rest (usage the logs miss on a day stays "(unattributed)"), so nothing is counted twice. The desktop app
 doesn't do that: give it one file or the other. Identities are shortened to `Role/session` or the IAM user
 name; a service role such as an AgentCore harness shows up as that role, not as a person. A long-term Bedrock
-API key is its own IAM user, `BedrockAPIKey-<suffix>`, so usage through it is logged under the key, not the
-person who made it; console use under SSO shows as `Role/<Identity Center user id>`. Ask the customer who owns
-each key and role, or have them tag keys with the owner's name, to turn those into people.
+API key is its own IAM user, `BedrockAPIKey-<suffix>`, so Bedrock logs the key, not the person; the script ties
+it to a person from an `owner` (or `email`, `user`, `name`) tag on that IAM user, else from the CloudTrail
+CreateUser event that made it (90 days of event history). SSO sessions log as `Role/<Identity Center user id>`
+and are resolved to the user's email where the account can read the identity store. Anything it can't resolve
+stays as the key or role name, and the script says which, so the customer can tag those keys with
+`owner=<email>` (IAM console > Users) and rerun.
 The tenant is the AWS Region; model ids such as `us.anthropic.claude-sonnet-...` are priced from the
 Anthropic list, while Amazon's own models get the fallback price until they're added to `catalog.py`.
 

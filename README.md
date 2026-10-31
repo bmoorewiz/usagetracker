@@ -178,7 +178,7 @@ Outputs (`--out DIR` changes the folder; `--open` opens the dashboard in your br
 | Anthropic API | `GET /v1/organizations/usage_report/messages` grouped by `api_key_id`, `model`, `workspace_id` | email of the user who **created** the API key | workspace |
 | Claude Code (`--claude-code`) | `GET /v1/organizations/usage_report/claude_code` | user's email (actor) | `claude-code` |
 | OpenAI | `GET /v1/organization/usage/completions` grouped by `user_id`, `api_key_id`, `model`, `project_id` | `user_id` → email, or else the API key owner | project |
-| AWS Bedrock | `bedrock_usage.py`, run by the customer in AWS CloudShell; load its CSVs with `--csv` or on the web page's Data tab | the caller's IAM identity (only if invocation logging is on; otherwise unattributed) | AWS Region |
+| AWS Bedrock | `bedrock_usage.py`, run by the customer in AWS CloudShell; load its CSVs with `--csv` or on the web page's Data tab | the caller's IAM identity (only if invocation logging is on; otherwise unattributed); Bedrock API keys are tied to their creator or an `owner` tag, SSO sessions to the Identity Center user | AWS Region |
 | Anything else | `--csv` | the `user` column | the `tenant` column |
 
 Caveats:
